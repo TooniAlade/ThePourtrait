@@ -10,6 +10,7 @@ from email.mime.image import MIMEImage
 import datetime
 import uuid
 import base64
+import math
 
 app = Flask(__name__)
 CORS(app)
@@ -38,6 +39,104 @@ else:
 
 # Test mode - will be disabled when working app password is provided
 TEST_MODE = os.getenv('TEST_MODE', 'true').lower() == 'true'
+
+# Color name mapping - comprehensive list of colors with their hex values
+COLOR_NAMES = {
+    # Reds
+    "#ff0000": "Red", "#ff6b6b": "Coral Red", "#ff3838": "Bright Red", "#ff4757": "Cherry Red",
+    "#ff3f34": "Crimson", "#ff6348": "Tomato Red", "#e74c3c": "Soft Red", "#c0392b": "Dark Red",
+    
+    # Oranges
+    "#ffa502": "Orange", "#ff9f43": "Light Orange", "#f39c12": "Golden Orange", "#e67e22": "Burnt Orange",
+    "#ff7675": "Peach", "#fd79a8": "Pink Orange",
+    
+    # Yellows
+    "#f9ca24": "Golden Yellow", "#f1c40f": "Bright Yellow", "#fdcb6e": "Soft Yellow", 
+    "#e17055": "Amber", "#fddb3a": "Sunshine Yellow",
+    
+    # Greens
+    "#2ed573": "Mint Green", "#7bed9f": "Light Green", "#55efc4": "Aqua Green", "#00b894": "Teal Green",
+    "#4ecdc4": "Turquoise", "#27ae60": "Forest Green", "#16a085": "Dark Teal", "#2ecc71": "Emerald",
+    
+    # Blues
+    "#1e90ff": "Sky Blue", "#54a0ff": "Light Blue", "#70a1ff": "Soft Blue", "#45b7d1": "Ocean Blue",
+    "#3742fa": "Royal Blue", "#2f3542": "Navy Blue", "#18dcff": "Cyan Blue", "#00d2d3": "Bright Cyan",
+    "#a0e7e5": "Ice Blue", "#74b9ff": "Periwinkle", "#0984e3": "Deep Blue",
+    
+    # Purples
+    "#6c5ce7": "Purple", "#5f27cd": "Deep Purple", "#5352ed": "Violet", "#7d5fff": "Light Purple",
+    "#a29bfe": "Lavender", "#6c5ce7": "Indigo", "#9b59b6": "Plum", "#8e44ad": "Dark Purple",
+    
+    # Pinks
+    "#ff9ff3": "Pink", "#fd79a8": "Rose Pink", "#e84393": "Hot Pink", "#f368e0": "Magenta Pink",
+    "#ff7675": "Salmon Pink", "#fab1a0": "Peach Pink",
+    
+    # Grays and neutrals
+    "#636e72": "Gray", "#2d3436": "Dark Gray", "#ddd": "Light Gray", "#95a5a6": "Silver Gray",
+    "#34495e": "Slate Gray", "#7f8c8d": "Medium Gray",
+    
+    # Additional common colors
+    "#ffffff": "White", "#000000": "Black", "#brown": "Brown", "#tan": "Tan"
+}
+
+def hex_to_rgb(hex_color):
+    """Convert hex color to RGB tuple"""
+    hex_color = hex_color.lstrip('#')
+    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+
+def color_distance(color1, color2):
+    """Calculate the Euclidean distance between two RGB colors"""
+    r1, g1, b1 = color1
+    r2, g2, b2 = color2
+    return math.sqrt((r2-r1)**2 + (g2-g1)**2 + (b2-b1)**2)
+
+def hex_to_color_name(hex_color):
+    """Convert hex color to the closest named color"""
+    try:
+        target_rgb = hex_to_rgb(hex_color)
+        
+        closest_color = "Unknown Color"
+        closest_distance = float('inf')
+        
+        for known_hex, name in COLOR_NAMES.items():
+            try:
+                known_rgb = hex_to_rgb(known_hex)
+                distance = color_distance(target_rgb, known_rgb)
+                
+                if distance < closest_distance:
+                    closest_distance = distance
+                    closest_color = name
+            except ValueError:
+                continue
+                
+        # If it's very close to a known color (distance < 30), return that name
+        # Otherwise, create a descriptive name based on RGB values
+        if closest_distance < 50:
+            return closest_color
+        else:
+            r, g, b = target_rgb
+            # Create descriptive names based on dominant color component
+            if r > g and r > b:
+                if r > 200: return "Bright Red"
+                elif r > 150: return "Red"
+                else: return "Dark Red"
+            elif g > r and g > b:
+                if g > 200: return "Bright Green"
+                elif g > 150: return "Green"
+                else: return "Dark Green"
+            elif b > r and b > g:
+                if b > 200: return "Bright Blue"
+                elif b > 150: return "Blue"
+                else: return "Dark Blue"
+            else:
+                # Mixed colors
+                if r > 150 and g > 150: return "Yellow"
+                elif r > 150 and b > 150: return "Purple"
+                elif g > 150 and b > 150: return "Teal"
+                else: return "Gray"
+                
+    except Exception:
+        return "Unknown Color"
 
 @app.route('/')
 def index():
@@ -89,12 +188,26 @@ def generate_art():
         }
         
         for line in output_lines:
-            # Handle both emoji and fallback versions
-            if ('🎲 Randomly selected silhouette:' in line or '[DICE] Randomly selected silhouette:' in line):
-                details['silhouette'] = line.split(': ')[1].strip()
-            elif ('🎨 Selected colors:' in line or '[ART] Selected colors:' in line):
+            # Handle emoji, mangled emoji (Windows Unicode issues), and fallback versions
+            if ('🎲 Randomly selected silhouette:' in line or 
+                'ðŸŽ² Randomly selected silhouette:' in line or 
+                '[DICE] Randomly selected silhouette:' in line):
+                silhouette_name = line.split(': ')[1].strip()
+                # Remove .png extension from silhouette name for display
+                if silhouette_name.lower().endswith('.png'):
+                    silhouette_name = silhouette_name[:-4]
+                elif silhouette_name.lower().endswith('.jpg'):
+                    silhouette_name = silhouette_name[:-4]
+                elif silhouette_name.lower().endswith('.jpeg'):
+                    silhouette_name = silhouette_name[:-5]
+                details['silhouette'] = silhouette_name
+            elif ('🎨 Selected colors:' in line or 
+                  'ðŸŽ¨ Selected colors:' in line or 
+                  '[ART] Selected colors:' in line):
                 colors_str = line.split(': ')[1].strip()
-                details['colors'] = [c.strip() for c in colors_str.split(',')]
+                hex_colors = [c.strip() for c in colors_str.split(',')]
+                # Convert hex colors to named colors
+                details['colors'] = [hex_to_color_name(hex_color) for hex_color in hex_colors]
         
         # Check if file was created
         if not os.path.exists(output_path):
