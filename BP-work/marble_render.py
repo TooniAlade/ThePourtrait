@@ -157,13 +157,15 @@ def swirl_field(u, v, centers: List[Tuple[float,float]], strength=0.06, radius=0
 
 
 def render_marble(input_path: str, colors_path: str, output_path: str, seed: int = 0,
-                  edge: float = 0.015, warp_strength: float = 0.12, octaves: int = 3,
-                  swirl_count: int = 2) -> None:
+                  edge: float = 0.018, warp_strength: float = 0.14, octaves: int = 4,
+                  swirl_count: int = 2, comb_amp: float = 0.05, comb_freq: float = 10.0,
+                  flow_steps: int = 2) -> None:
     # Load silhouette as mask
     img = Image.open(input_path).convert("L")
     W, H = img.size
     mask = np.array(img, dtype=np.float32) / 255.0
-    inside = mask > 0.5
+    # Invert: treat dark silhouette as inside, white background as outside
+    inside = mask < 0.5
 
     # Coordinates in [0,1]
     yy, xx = np.mgrid[0:H, 0:W]
@@ -195,6 +197,14 @@ def render_marble(input_path: str, colors_path: str, output_path: str, seed: int
 
     u2 = (u + du1 + du2) % 1.0
     v2 = (v + dv1 + dv2) % 1.0
+    # Comb (rake) warp: introduce repeated streaks along v to increase marbling
+    phase = np.random.RandomState(seed+77).uniform(0.0, 1.0)
+    u2 = (u2 + comb_amp * np.sin(2*np.pi*(comb_freq * v + phase))) % 1.0
+    # Iterative flow to elongate streaks (advect coordinates a couple of times)
+    for i in range(max(0, int(flow_steps))):
+        duf, dvf = domain_warp(u2, v2, seed=seed+200+i, strength=warp_strength*0.6, octaves=max(1, octaves-1))
+        u2 = (u2 + 0.5 * duf) % 1.0
+        v2 = (v2 + 0.5 * dvf) % 1.0
     t2 = (u2 + 0.0*v2) % 1.0  # stripes primarily along x, warped by displacement
 
     # Map t2 to color bands with soft edges
@@ -233,15 +243,20 @@ def main():
     p.add_argument("--colors", default=DEFAULT_COLORS, help="Path to colors.json with ratios")
     p.add_argument("--output", default=DEFAULT_OUTPUT, help="Path to save output PNG")
     p.add_argument("--seed", type=int, default=0, help="Random seed for marbling")
-    p.add_argument("--edge", type=float, default=0.015, help="Soft edge width between bands (0..0.1)")
-    p.add_argument("--strength", type=float, default=0.12, help="Warp strength (0..0.3)")
-    p.add_argument("--octaves", type=int, default=3, help="Warp octaves (1..5)")
+    p.add_argument("--edge", type=float, default=0.018, help="Soft edge width between bands (0..0.1)")
+    p.add_argument("--strength", type=float, default=0.14, help="Warp strength (0..0.3)")
+    p.add_argument("--octaves", type=int, default=4, help="Warp octaves (1..5)")
     p.add_argument("--swirls", type=int, default=2, help="Number of large swirl centers (0..5)")
+    p.add_argument("--comb-amp", type=float, default=0.05, help="Comb (rake) warp amplitude (0..0.2)")
+    p.add_argument("--comb-freq", type=float, default=10.0, help="Comb (rake) warp frequency (bands along vertical)")
+    p.add_argument("--flow-steps", type=int, default=2, help="Iterative flow steps to elongate streaks (0..4)")
     args = p.parse_args()
 
     render_marble(args.input, args.colors, args.output, seed=args.seed,
                   edge=args.edge, warp_strength=args.strength, octaves=args.octaves,
-                  swirl_count=args.swirls)
+                  swirl_count=args.swirls, comb_amp=args["comb_amp"] if isinstance(args, dict) else args.comb_amp,
+                  comb_freq=args["comb_freq"] if isinstance(args, dict) else args.comb_freq,
+                  flow_steps=args["flow_steps"] if isinstance(args, dict) else args.flow_steps)
     print(f"Saved: {args.output}")
 
 
