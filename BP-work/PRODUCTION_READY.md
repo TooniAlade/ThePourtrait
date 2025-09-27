@@ -2,9 +2,23 @@
 
 ## 🚀 Quick Start
 
-**To run your gallery:**
+### For First-Time Setup (New Teammates):
 ```bash
-cd "BP-work"
+# 1. Clone the repository
+git clone [repository-url]
+cd ThePourtrait
+
+# 2. Run one-time setup
+.\setup_for_teammates.bat
+
+# 3. Start the gallery
+cd BP-work
+.\start_with_email.bat
+```
+
+### For Regular Use:
+```bash
+cd BP-work
 .\start_with_email.bat
 ```
 
