@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import random
 import time
 from typing import List, Tuple, Optional
 
@@ -14,38 +15,58 @@ except Exception:
     HAS_PYGAME = False
 
 # Defaults
-DEFAULT_INPUT = os.path.join(os.path.dirname(__file__), "wolfimage.png")
+def get_random_silhouette():
+    """Get a random silhouette from the silhouettes folder, fallback to wolfimage.png if none found."""
+    silhouettes_dir = os.path.join(os.path.dirname(__file__), "silhouettes")
+    fallback = os.path.join(os.path.dirname(__file__), "wolfimage.png")
+    
+    if not os.path.exists(silhouettes_dir):
+        return fallback
+    
+    # Get all PNG files from silhouettes directory
+    silhouette_files = [f for f in os.listdir(silhouettes_dir) 
+                       if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+    
+    if not silhouette_files:
+        return fallback
+    
+    # Select random silhouette
+    selected_file = random.choice(silhouette_files)
+    selected_path = os.path.join(silhouettes_dir, selected_file)
+    
+    print(f"🎲 Randomly selected silhouette: {selected_file}")
+    return selected_path
+
+DEFAULT_INPUT = get_random_silhouette()
 DEFAULT_COLORS = os.path.join(os.path.dirname(__file__), "colors.json")
 DEFAULT_OUTPUT = os.path.join(os.path.dirname(__file__), "marble_output.png")
 
 
 def parse_colors(colors_path: str) -> Tuple[List[Tuple[float, float, float]], List[float]]:
     """
-    Parse colors and ratios from a JSON file. Accepts a few flexible formats:
-    - [{"color": "#RRGGBB", "percent": 30}, ...]
-    - [{"color": [r,g,b], "percent": 30}, ...]
-    - {"#RRGGBB": 30, "#0000FF": 50, "#00FF00": 20}
-    - [[r,g,b, percent], ...]
-
+    Parse colors from JSON file and randomly select 6 colors with standard percentages.
+    Automatically picks 6 colors from the full palette and applies:
+    25%, 20%, 20%, 15%, 10%, 10% distribution.
+    
     Returns (colors_rgb_0_1, weights_norm) where weights sum to 1.
     If file missing or invalid, returns a fallback palette.
     """
     fallback_colors = [(230/255.0, 70/255.0, 70/255.0),
                        (60/255.0, 120/255.0, 230/255.0),
                        (60/255.0, 200/255.0, 120/255.0)]
-    fallback_weights = [0.34, 0.33, 0.33]
+    fallback_weights = [0.25, 0.20, 0.20, 0.15, 0.10, 0.10]
+    
+    # Standard 6-color percentage breakdown
+    standard_percentages = [25, 20, 20, 15, 10, 10]
 
     if not colors_path or not os.path.exists(colors_path):
-        return fallback_colors, fallback_weights
+        return fallback_colors[:6], [w/100.0 for w in standard_percentages]
 
     try:
         with open(colors_path, "r", encoding="utf-8") as f:
             data = json.load(f)
     except Exception:
-        return fallback_colors, fallback_weights
-
-    colors = []
-    weights = []
+        return fallback_colors[:6], [w/100.0 for w in standard_percentages]
 
     def hex_to_rgb01(h: str):
         h = h.strip()
@@ -61,49 +82,51 @@ def parse_colors(colors_path: str) -> Tuple[List[Tuple[float, float, float]], Li
             b = int(h[4:6], 16)
         return (r/255.0, g/255.0, b/255.0)
 
+    # Parse all available colors from the JSON
+    all_colors = []
+    
     try:
-        if isinstance(data, dict):
-            for k, v in data.items():
-                # k is color, v is percent
-                if isinstance(k, str):
-                    c = hex_to_rgb01(k)
-                elif isinstance(k, (list, tuple)) and len(k) >= 3:
-                    c = (float(k[0])/255.0, float(k[1])/255.0, float(k[2])/255.0)
-                else:
-                    continue
-                colors.append(c)
-                weights.append(float(v))
-        elif isinstance(data, list):
+        if isinstance(data, list):
             for item in data:
-                if isinstance(item, dict):
-                    if "color" in item and "percent" in item:
-                        col = item["color"]
-                        pct = item["percent"]
-                        if isinstance(col, str):
-                            c = hex_to_rgb01(col)
-                        elif isinstance(col, (list, tuple)) and len(col) >= 3:
-                            c = (float(col[0])/255.0, float(col[1])/255.0, float(col[2])/255.0)
-                        else:
-                            continue
-                        colors.append(c)
-                        weights.append(float(pct))
-                elif isinstance(item, (list, tuple)) and len(item) >= 4:
+                if isinstance(item, dict) and "color" in item:
+                    col = item["color"]
+                    if isinstance(col, str):
+                        c = hex_to_rgb01(col)
+                        all_colors.append(c)
+                    elif isinstance(col, (list, tuple)) and len(col) >= 3:
+                        c = (float(col[0])/255.0, float(col[1])/255.0, float(col[2])/255.0)
+                        all_colors.append(c)
+                elif isinstance(item, (list, tuple)) and len(item) >= 3:
                     c = (float(item[0])/255.0, float(item[1])/255.0, float(item[2])/255.0)
-                    colors.append(c)
-                    weights.append(float(item[3]))
+                    all_colors.append(c)
     except Exception:
-        return fallback_colors, fallback_weights
+        return fallback_colors[:6], [w/100.0 for w in standard_percentages]
 
-    # normalize
-    if not colors or not weights:
-        return fallback_colors, fallback_weights
-    w = np.array(weights, dtype=np.float64)
-    w[w < 0] = 0
-    s = float(w.sum())
-    if s <= 0:
-        return fallback_colors, fallback_weights
-    w = (w / s).tolist()
-    return colors, w
+    # If we have colors, randomly select 6 and apply standard percentages
+    if all_colors and len(all_colors) >= 6:
+        selected_colors = random.sample(all_colors, 6)
+        selected_weights = [w/100.0 for w in standard_percentages]
+        
+        # Show which colors were selected
+        color_names = []
+        for color in selected_colors:
+            hex_color = "#{:02x}{:02x}{:02x}".format(
+                int(color[0] * 255), int(color[1] * 255), int(color[2] * 255)
+            )
+            color_names.append(hex_color)
+        print(f"🎨 Selected colors: {', '.join(color_names)}")
+        print(f"📊 Percentages: {standard_percentages}")
+        
+        return selected_colors, selected_weights
+    elif all_colors:
+        # If fewer than 6 colors, use what we have with adjusted percentages
+        selected_weights = [w/100.0 for w in standard_percentages[:len(all_colors)]]
+        # Normalize to sum to 1
+        total = sum(selected_weights)
+        selected_weights = [w/total for w in selected_weights]
+        return all_colors, selected_weights
+    else:
+        return fallback_colors[:6], [w/100.0 for w in standard_percentages]
 
 
 def build_bands(weights: List[float]) -> np.ndarray:
@@ -338,26 +361,51 @@ def animate_reveal(col: np.ndarray, inside: np.ndarray, output_path: str,
 
 
 def main():
-    p = argparse.ArgumentParser(description="Generate a marbled image inside a silhouette using color ratios. Optionally preview a center-out reveal animation.")
-    p.add_argument("--input", default=DEFAULT_INPUT, help="Path to silhouette image (PNG with black silhouette on white)")
+    p = argparse.ArgumentParser(description="Generate a marbled image inside a silhouette using color ratios. Randomly selects from silhouettes folder by default.")
+    p.add_argument("--input", default=DEFAULT_INPUT, help="Path to silhouette image (PNG with black silhouette on white). If not specified, randomly selects from silhouettes/ folder")
+    p.add_argument("--random", action="store_true", help="Force random silhouette selection even if --input is specified")
+    p.add_argument("--list-silhouettes", action="store_true", help="List available silhouettes and exit")
     p.add_argument("--colors", default=DEFAULT_COLORS, help="Path to colors.json with ratios")
     p.add_argument("--output", default=DEFAULT_OUTPUT, help="Path to save output PNG")
-    p.add_argument("--seed", type=int, default=0, help="Random seed for marbling")
-    p.add_argument("--edge", type=float, default=0.018, help="Soft edge width between bands (0..0.1)")
-    p.add_argument("--strength", type=float, default=0.14, help="Warp strength (0..0.3)")
+    p.add_argument("--seed", type=int, default=3, help="Random seed for marbling")
+    p.add_argument("--edge", type=float, default=0.02, help="Soft edge width between bands (0..0.1)")
+    p.add_argument("--strength", type=float, default=0.16, help="Warp strength (0..0.3)")
     p.add_argument("--octaves", type=int, default=4, help="Warp octaves (1..5)")
     p.add_argument("--swirls", type=int, default=2, help="Number of large swirl centers (0..5)")
-    p.add_argument("--comb-amp", type=float, default=0.05, help="Comb (rake) warp amplitude (0..0.2)")
-    p.add_argument("--comb-freq", type=float, default=10.0, help="Comb (rake) warp frequency (bands along vertical)")
+    p.add_argument("--comb-amp", type=float, default=0.06, help="Comb (rake) warp amplitude (0..0.2)")
+    p.add_argument("--comb-freq", type=float, default=9.0, help="Comb (rake) warp frequency (bands along vertical)")
     p.add_argument("--flow-steps", type=int, default=2, help="Iterative flow steps to elongate streaks (0..4)")
-    # Reveal animation options
-    p.add_argument("--preview", action="store_true", help="Show a live center-out reveal animation")
+    # Reveal animation options - PREVIEW IS NOW ON BY DEFAULT
+    p.add_argument("--no-preview", action="store_true", help="Disable the live center-out reveal animation")
     p.add_argument("--seconds", type=float, default=6.0, help="Duration of the reveal animation")
     p.add_argument("--fps", type=int, default=30, help="Frames per second for preview")
     p.add_argument("--center-x", type=float, default=None, help="Reveal center X in [0,1] (relative); default: mask centroid")
     p.add_argument("--center-y", type=float, default=None, help="Reveal center Y in [0,1] (relative); default: mask centroid")
-    p.add_argument("--reveal-edge", type=float, default=10.0, help="Reveal edge softness in pixels")
+    p.add_argument("--reveal-edge", type=float, default=12.0, help="Reveal edge softness in pixels")
     args = p.parse_args()
+
+    # Handle special options
+    if args.list_silhouettes:
+        silhouettes_dir = os.path.join(os.path.dirname(__file__), "silhouettes")
+        if os.path.exists(silhouettes_dir):
+            silhouette_files = [f for f in os.listdir(silhouettes_dir) 
+                               if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+            if silhouette_files:
+                print("🎨 Available silhouettes:")
+                for i, filename in enumerate(sorted(silhouette_files), 1):
+                    print(f"  {i}. {filename}")
+            else:
+                print("❌ No silhouettes found in silhouettes/ folder")
+        else:
+            print("❌ silhouettes/ folder not found")
+        return
+
+    # Use random silhouette if --random flag is used
+    if args.random:
+        args.input = get_random_silhouette()
+
+    # Set preview to True by default, disable only if --no-preview is used
+    args.preview = not args.no_preview
 
     # First, generate the marbled image deterministically for the given seed/params
     render_marble(args.input, args.colors, args.output, seed=args.seed,
