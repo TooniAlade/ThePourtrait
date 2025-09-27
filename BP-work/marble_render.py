@@ -1,10 +1,17 @@
 import argparse
 import json
 import os
-from typing import List, Tuple
+import time
+from typing import List, Tuple, Optional
 
 import numpy as np
 from PIL import Image
+try:
+    import pygame
+    from pygame.locals import QUIT, KEYDOWN, K_ESCAPE
+    HAS_PYGAME = True
+except Exception:
+    HAS_PYGAME = False
 
 # Defaults
 DEFAULT_INPUT = os.path.join(os.path.dirname(__file__), "wolfimage.png")
@@ -237,8 +244,101 @@ def render_marble(input_path: str, colors_path: str, output_path: str, seed: int
     Image.fromarray(np.clip(out*255.0, 0, 255).astype(np.uint8)).save(output_path)
 
 
+def compute_center(inside_mask: np.ndarray) -> Tuple[float, float]:
+    """Return center (cx, cy) in pixel coordinates as the centroid of the inside mask.
+    If mask is empty, return image center.
+    """
+    H, W = inside_mask.shape
+    ys, xs = np.where(inside_mask)
+    if ys.size == 0:
+        return (W/2.0, H/2.0)
+    cx = xs.mean()
+    cy = ys.mean()
+    return (float(cx), float(cy))
+
+
+def animate_reveal(col: np.ndarray, inside: np.ndarray, output_path: str,
+                   center: Optional[Tuple[float,float]] = None,
+                   seconds: float = 6.0, fps: int = 30, reveal_edge_px: float = 10.0,
+                   preview: bool = True, save_final: bool = True) -> None:
+    """
+    Animate a radial reveal from center over white background. If preview is True and pygame
+    is available, display live; otherwise, save a few progress frames and the final image.
+    col: (H,W,3) float32 in [0,1]
+    inside: (H,W) boolean mask
+    center: (cx,cy) in pixel coordinates; if None, use centroid
+    """
+    H, W, _ = col.shape
+    if center is None:
+        cx, cy = compute_center(inside)
+    else:
+        cx, cy = center
+
+    yy, xx = np.mgrid[0:H, 0:W]
+    dist = np.sqrt((xx - cx)**2 + (yy - cy)**2)
+    # Maximum distance needed to cover all inside pixels
+    max_dist = float(dist[inside].max()) if inside.any() else float(np.hypot(W, H))
+    total_frames = max(1, int(seconds * fps))
+
+    def frame_image(i: int) -> np.ndarray:
+        t = i / max(1, total_frames - 1)
+        r = t * max_dist
+        edge = reveal_edge_px
+        # inside weight = 1 inside radius, 0 outside, with soft edge
+        w = 1.0 - smoothstep(r - edge, r + edge, dist)
+        w = w * (inside.astype(np.float32))
+        w3 = w[..., None]
+        base = np.ones((H, W, 3), dtype=np.float32)
+        return base * (1.0 - w3) + col * w3
+
+    if preview and HAS_PYGAME:
+        pygame.init()
+        surf = pygame.display.set_mode((W, H))
+        pygame.display.set_caption("Marble Reveal Preview (Esc to exit)")
+        clock = pygame.time.Clock()
+
+        running = True
+        # Animation phase
+        for i in range(total_frames):
+            for event in pygame.event.get():
+                if event.type == QUIT:
+                    running = False
+                if event.type == KEYDOWN and event.key == K_ESCAPE:
+                    running = False
+            if not running:
+                break
+            frame = frame_image(i)
+            frame8 = np.clip(frame * 255.0, 0, 255).astype(np.uint8)
+            frame_surface = pygame.surfarray.make_surface(np.transpose(frame8, (1, 0, 2)))
+            surf.blit(frame_surface, (0, 0))
+            pygame.display.flip()
+            clock.tick(fps)
+
+        # Hold final image on screen until user exits
+        if running:
+            final = frame_image(total_frames - 1)
+            final8 = np.clip(final * 255.0, 0, 255).astype(np.uint8)
+            final_surface = pygame.surfarray.make_surface(np.transpose(final8, (1, 0, 2)))
+            surf.blit(final_surface, (0, 0))
+            pygame.display.flip()
+            while running:
+                for event in pygame.event.get():
+                    if event.type == QUIT:
+                        running = False
+                    if event.type == KEYDOWN and event.key == K_ESCAPE:
+                        running = False
+                clock.tick(30)
+
+        pygame.quit()
+
+    # Always save final image
+    if save_final:
+        final = frame_image(total_frames - 1)
+        Image.fromarray(np.clip(final*255.0, 0, 255).astype(np.uint8)).save(output_path)
+
+
 def main():
-    p = argparse.ArgumentParser(description="Generate a marbled image inside a silhouette using color ratios.")
+    p = argparse.ArgumentParser(description="Generate a marbled image inside a silhouette using color ratios. Optionally preview a center-out reveal animation.")
     p.add_argument("--input", default=DEFAULT_INPUT, help="Path to silhouette image (PNG with black silhouette on white)")
     p.add_argument("--colors", default=DEFAULT_COLORS, help="Path to colors.json with ratios")
     p.add_argument("--output", default=DEFAULT_OUTPUT, help="Path to save output PNG")
@@ -250,14 +350,51 @@ def main():
     p.add_argument("--comb-amp", type=float, default=0.05, help="Comb (rake) warp amplitude (0..0.2)")
     p.add_argument("--comb-freq", type=float, default=10.0, help="Comb (rake) warp frequency (bands along vertical)")
     p.add_argument("--flow-steps", type=int, default=2, help="Iterative flow steps to elongate streaks (0..4)")
+    # Reveal animation options
+    p.add_argument("--preview", action="store_true", help="Show a live center-out reveal animation")
+    p.add_argument("--seconds", type=float, default=6.0, help="Duration of the reveal animation")
+    p.add_argument("--fps", type=int, default=30, help="Frames per second for preview")
+    p.add_argument("--center-x", type=float, default=None, help="Reveal center X in [0,1] (relative); default: mask centroid")
+    p.add_argument("--center-y", type=float, default=None, help="Reveal center Y in [0,1] (relative); default: mask centroid")
+    p.add_argument("--reveal-edge", type=float, default=10.0, help="Reveal edge softness in pixels")
     args = p.parse_args()
 
+    # First, generate the marbled image deterministically for the given seed/params
     render_marble(args.input, args.colors, args.output, seed=args.seed,
                   edge=args.edge, warp_strength=args.strength, octaves=args.octaves,
                   swirl_count=args.swirls, comb_amp=args["comb_amp"] if isinstance(args, dict) else args.comb_amp,
                   comb_freq=args["comb_freq"] if isinstance(args, dict) else args.comb_freq,
                   flow_steps=args["flow_steps"] if isinstance(args, dict) else args.flow_steps)
-    print(f"Saved: {args.output}")
+
+    # If no preview requested, we're done
+    if not getattr(args, "preview", False):
+        print(f"Saved: {args.output}")
+        return
+
+    # If preview requested, compute the same image in-memory and animate reveal
+    img = Image.open(args.output).convert("RGB")
+    col = np.array(img, dtype=np.float32) / 255.0
+    # Re-load mask and inside for reveal and center calculation
+    mask_img = Image.open(args.input).convert("L")
+    mask = np.array(mask_img, dtype=np.float32) / 255.0
+    inside = mask < 0.5
+
+    H, W, _ = col.shape
+    if args.center_x is not None and args.center_y is not None:
+        cx = float(np.clip(args.center_x, 0.0, 1.0)) * W
+        cy = float(np.clip(args.center_y, 0.0, 1.0)) * H
+        center = (cx, cy)
+    else:
+        center = None
+
+    animate_reveal(col, inside, args.output,
+                   center=center,
+                   seconds=args.seconds,
+                   fps=args.fps,
+                   reveal_edge_px=args.reveal_edge,
+                   preview=True,
+                   save_final=True)
+    print(f"Saved (final frame): {args.output}")
 
 
 if __name__ == "__main__":
