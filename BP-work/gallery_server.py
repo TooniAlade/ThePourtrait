@@ -200,6 +200,8 @@ def generate_art():
                     silhouette_name = silhouette_name[:-4]
                 elif silhouette_name.lower().endswith('.jpeg'):
                     silhouette_name = silhouette_name[:-5]
+                # Capitalize the first letter of the silhouette name
+                silhouette_name = silhouette_name.capitalize()
                 details['silhouette'] = silhouette_name
             elif ('🎨 Selected colors:' in line or 
                   'ðŸŽ¨ Selected colors:' in line or 

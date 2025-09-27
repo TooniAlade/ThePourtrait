@@ -43,7 +43,7 @@ cd BP-work
 ## ✅ Features Working
 
 - 🎨 **Art Generation**: Random silhouettes + colors
-- 🎭 **Clean Silhouette Names**: Displays names without file extensions (e.g., "starrynight" instead of "starrynight.png")
+- 🎭 **Clean Silhouette Names**: Displays proper names with capitalization (e.g., "Starrynight" instead of "starrynight.png")
 - 🎨 **Named Colors**: Converts hex colors to beautiful names (e.g., "Deep Purple", "Ocean Blue", "Coral Red")
 - 📧 **Email Delivery**: Professional HTML emails with attachments
 - ⬇️ **Downloads**: High-resolution PNG files
