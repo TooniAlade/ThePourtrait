@@ -34,7 +34,10 @@ def get_random_silhouette():
     selected_file = random.choice(silhouette_files)
     selected_path = os.path.join(silhouettes_dir, selected_file)
     
-    print(f"🎲 Randomly selected silhouette: {selected_file}")
+    try:
+        print(f"🎲 Randomly selected silhouette: {selected_file}")
+    except UnicodeEncodeError:
+        print(f"[DICE] Randomly selected silhouette: {selected_file}")
     return selected_path
 
 DEFAULT_INPUT = get_random_silhouette()
@@ -114,8 +117,12 @@ def parse_colors(colors_path: str) -> Tuple[List[Tuple[float, float, float]], Li
                 int(color[0] * 255), int(color[1] * 255), int(color[2] * 255)
             )
             color_names.append(hex_color)
-        print(f"🎨 Selected colors: {', '.join(color_names)}")
-        print(f"📊 Percentages: {standard_percentages}")
+        try:
+            print(f"🎨 Selected colors: {', '.join(color_names)}")
+            print(f"📊 Percentages: {standard_percentages}")
+        except UnicodeEncodeError:
+            print(f"[ART] Selected colors: {', '.join(color_names)}")
+            print(f"[CHART] Percentages: {standard_percentages}")
         
         return selected_colors, selected_weights
     elif all_colors:
@@ -391,13 +398,22 @@ def main():
             silhouette_files = [f for f in os.listdir(silhouettes_dir) 
                                if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
             if silhouette_files:
-                print("🎨 Available silhouettes:")
+                try:
+                    print("🎨 Available silhouettes:")
+                except UnicodeEncodeError:
+                    print("[ART] Available silhouettes:")
                 for i, filename in enumerate(sorted(silhouette_files), 1):
                     print(f"  {i}. {filename}")
             else:
-                print("❌ No silhouettes found in silhouettes/ folder")
+                try:
+                    print("❌ No silhouettes found in silhouettes/ folder")
+                except UnicodeEncodeError:
+                    print("[X] No silhouettes found in silhouettes/ folder")
         else:
-            print("❌ silhouettes/ folder not found")
+            try:
+                print("❌ silhouettes/ folder not found")
+            except UnicodeEncodeError:
+                print("[X] silhouettes/ folder not found")
         return
 
     # Use random silhouette if --random flag is used
