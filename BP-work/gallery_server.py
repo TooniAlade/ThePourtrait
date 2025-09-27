@@ -279,13 +279,13 @@ def send_art_email(name, email, art_path, art_info):
             print(f"User request logged: {user_request}")
             return True
         
-        # Create message
-        msg = MIMEMultipart()
+        # Create message with related content for embedded images
+        msg = MIMEMultipart('related')
         msg['From'] = EMAIL_USER
         msg['To'] = email
         msg['Subject'] = f"🎨 Your Beautiful Marble Art - ThePourtrait"
         
-        # Create HTML body
+        # Create HTML body with embedded image
         colors_list = ', '.join(art_info.get('colors', []))
         html_body = f"""
         <html>
@@ -297,6 +297,11 @@ def send_art_email(name, email, art_path, art_info):
                 
                 <p>Thank you for using ThePourtrait! We're excited to share your unique marble art creation.</p>
                 
+                <!-- Embedded Image -->
+                <div style="text-align: center; margin: 30px 0;">
+                    <img src="cid:marble_art_image" style="max-width: 100%; height: auto; border-radius: 15px; box-shadow: 0 8px 32px rgba(0,0,0,0.3);" alt="Your Marble Art Creation">
+                </div>
+                
                 <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin: 20px 0;">
                     <h3 style="color: #4a5568; margin-top: 0;">🎭 Art Details:</h3>
                     <ul style="list-style: none; padding: 0;">
@@ -307,7 +312,7 @@ def send_art_email(name, email, art_path, art_info):
                     </ul>
                 </div>
                 
-                <p>Your marble art is attached to this email in high resolution. Feel free to:</p>
+                <p>Your marble art is also attached to this email as a high-resolution file for easy download. Feel free to:</p>
                 <ul>
                     <li>Print it for wall art or personal use</li>
                     <li>Share it on social media (tag us @ThePourtrait!)</li>
@@ -328,12 +333,20 @@ def send_art_email(name, email, art_path, art_info):
         
         msg.attach(MIMEText(html_body, 'html'))
         
-        # Attach the image
+        # Read image data once
         with open(art_path, 'rb') as f:
             img_data = f.read()
-            img = MIMEImage(img_data)
-            img.add_header('Content-Disposition', 'attachment', filename=f'marble_art_{name.replace(" ", "_")}.png')
-            msg.attach(img)
+        
+        # Embed the image for inline display
+        embedded_img = MIMEImage(img_data)
+        embedded_img.add_header('Content-ID', '<marble_art_image>')
+        embedded_img.add_header('Content-Disposition', 'inline')
+        msg.attach(embedded_img)
+        
+        # Also attach the image as downloadable attachment
+        attachment_img = MIMEImage(img_data)
+        attachment_img.add_header('Content-Disposition', 'attachment', filename=f'marble_art_{name.replace(" ", "_")}.png')
+        msg.attach(attachment_img)
         
         # Send email
         print(f"🔐 Attempting to send email using: {EMAIL_USER}")
