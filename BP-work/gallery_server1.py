@@ -30,7 +30,7 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 SMTP_SERVER = 'smtp.gmail.com'
 SMTP_PORT = 587
 EMAIL_USER = os.getenv('EMAIL_USER', 'pourtrait12@gmail.com')
-EMAIL_PASS = os.getenv('EMAIL_PASS', '')  # Use environment variable
+EMAIL_PASS = os.getenv('EMAIL_PASS', 'zqas sldr cncw hyud') 
 
 # Process the app password (remove spaces if present)
 if EMAIL_PASS:
