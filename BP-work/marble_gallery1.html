@@ -1,3 +1,4 @@
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,9 +12,9 @@
 
         body {
             font-family: 'Arial', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #b7b3ff;
             min-height: 100vh;
-            color: #333;
+            color: #453fae;
         }
 
         .header {
@@ -25,14 +26,13 @@
         }
 
         .header h1 {
-            color: white;
+            color: #453fae;
             font-size: 2.5rem;
             margin-bottom: 0.5rem;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
         }
 
         .header p {
-            color: rgba(255, 255, 255, 0.9);
+            color: #453fae;
             font-size: 1.1rem;
         }
 
@@ -49,7 +49,7 @@
             background: white;
             border-radius: 20px;
             padding: 2rem;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            box-shadow: 0 20px 40px rgba(44, 62, 80, 0.1);
             backdrop-filter: blur(10px);
             height: auto;
         }
@@ -63,13 +63,13 @@
         .art-info {
             margin-top: 1.5rem;
             padding: 1.5rem;
-            background: #f8f9fa;
+            background: #F8F9FA;
             border-radius: 15px;
-            border-left: 4px solid #667eea;
+            border-left: 4px solid #908bee;
         }
 
         .art-info h3 {
-            color: #000000;
+            color: #2C3E50;
             margin-bottom: 1rem;
         }
 
@@ -77,7 +77,7 @@
             background: white;
             border-radius: 20px;
             padding: 2rem;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            box-shadow: 0 20px 40px rgba(44, 62, 80, 0.1);
             backdrop-filter: blur(10px);
         }
 
@@ -86,13 +86,13 @@
         }
 
         .generate-section h2 {
-            color: #000000;
+            color: #453fae;
             margin-bottom: 1rem;
             font-size: 1.5rem;
         }
 
         .generate-btn {
-            background: linear-gradient(45deg, #667eea, #764ba2);
+            background: linear-gradient(45deg, #847ef6, #908bee);
             color: white;
             border: none;
             padding: 1rem 2rem;
@@ -106,17 +106,17 @@
 
         .generate-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+            box-shadow: 0 10px 20px rgba(80, 52, 219, 0.3);
         }
 
         .generate-btn:disabled {
-            background: #ccc;
+            background: #a7a3f5;
             cursor: not-allowed;
             transform: none;
         }
 
         .email-section h2 {
-            color: #000000;
+            color: #453fae;
             margin-bottom: 1rem;
             font-size: 1.5rem;
         }
@@ -133,14 +133,14 @@
         }
 
         .form-group label {
-            color: #000000;
+            color: #453fae;
             font-weight: 600;
             margin-bottom: 0.5rem;
         }
 
         .form-group input {
             padding: 1rem;
-            border: 2px solid #e2e8f0;
+            border: 2px solid #908bee;
             border-radius: 10px;
             font-size: 1rem;
             transition: border-color 0.3s ease;
@@ -148,12 +148,12 @@
 
         .form-group input:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: #908bee;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
         }
 
         .send-btn {
-            background: linear-gradient(45deg, #48bb78, #38a169);
+            background: #908bee;
             color: white;
             border: none;
             padding: 1rem 2rem;
@@ -165,11 +165,11 @@
 
         .send-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(72, 187, 120, 0.3);
+            box-shadow: 0 10px 20px rgba(74, 37, 243, 0.3);
         }
 
         .send-btn:disabled {
-            background: #ccc;
+            background: #a7a3f5;
             cursor: not-allowed;
             transform: none;
         }
@@ -204,21 +204,21 @@
         }
 
         .status-success {
-            background: #c6f6d5;
-            color: #2f855a;
-            border: 1px solid #9ae6b4;
+            background: #D5EDDA;
+            color: #155724;
+            border: 1px solid #C3E6CB;
         }
 
         .status-error {
-            background: #fed7d7;
-            color: #c53030;
-            border: 1px solid #feb2b2;
+            background: #F8D7DA;
+            color: #721C24;
+            border: 1px solid #F5C6CB;
         }
 
         .status-info {
-            background: #bee3f8;
-            color: #2b6cb0;
-            border: 1px solid #90cdf4;
+            background: #a7a3f5;
+            color: #908bee;
+            border: 1px solid #908bee;
         }
 
         .loading {
@@ -226,7 +226,7 @@
             width: 20px;
             height: 20px;
             border: 3px solid #f3f3f3;
-            border-top: 3px solid #667eea;
+            border-top: 3px solid #908bee;
             border-radius: 50%;
             animation: spin 1s linear infinite;
             margin-right: 10px;
@@ -236,7 +236,7 @@
         .modal-overlay {
             position: fixed;
             inset: 0;
-            background: rgba(0,0,0,0.5);
+            background: rgba(44, 62, 80, 0.5);
             display: none;
             align-items: center;
             justify-content: center;
@@ -249,7 +249,7 @@
             max-width: 720px;
             width: 90%;
             padding: 1rem;
-            box-shadow: 0 30px 60px rgba(0,0,0,0.3);
+            box-shadow: 0 30px 60px rgba(44, 62, 80, 0.3);
         }
 
         .modal-header {
@@ -263,8 +263,8 @@
         }
 
         .silhouette-selected {
-            border: 2px dashed #4e0aae !important;
-            outline: 2px solid rgba(102,126,234,0.14);
+            border: 2px dashed #908bee !important;
+            outline: 2px solid rgba(60, 68, 213, 0.14);
         }
 
         @keyframes spin {
@@ -287,13 +287,13 @@
         .art-placeholder {
             width: 100%;
             height: 400px;
-            background: #f8f9fa;
-            border: 2px dashed #dee2e6;
+            background: #f8f8fa;
+            border: 2px dashed #453fae;
             border-radius: 15px;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #6c757d;
+            color: #453fae;
             font-size: 1.1rem;
         }
 
@@ -346,7 +346,7 @@
                 <button class="generate-btn" id="generateBtn" onclick="generateArt()">
                     Generate New Marble Art
                 </button>
-                <button class="generate-btn" id="openModalBtn" style="margin-top:8px; background: #fff; color:#333; border:1px solid #ddd;" onclick="openModal()">
+                <button class="generate-btn" id="openModalBtn" style="margin-top:8px; background: #e6e4ff; color:#453fae; border:1px solid #908bee;" onclick="openModal()">
                     Select Custom Image
                 </button>
                 <div id="generateStatus"></div>
@@ -369,14 +369,13 @@
                         <button type="submit" class="send-btn" id="sendBtn" disabled>
                             Send to Email
                         </button>
-                        <button type="button" class="send-btn" id="downloadBtn" disabled onclick="downloadArt()" 
-                                style="background: linear-gradient(45deg, #6c5ce7, #a29bfe);">
+                        <button type="button" class="send-btn" id="downloadBtn" disabled onclick="downloadArt()" >
                             Download Art
                         </button>
                     </div>
                     <div class="reset-row">
                         <button type="button" class="send-btn" id="resetBtn" onclick="resetFromArduino()"
-                                style="background: linear-gradient(45deg, #ef4444, #f97316);">
+                                style="background: #908bee;">
                             Reset
                         </button>
                     </div>
@@ -714,13 +713,13 @@
             const userEmail = document.getElementById('userEmail').value;
             
             if (!currentArtPath) {
-                emailStatus.innerHTML = '<div class="status-message status-error">❌ Please generate art first!</div>';
+                emailStatus.innerHTML = '<div class="status-message status-error">Please generate art first!</div>';
                 return;
             }
             
             sendBtn.disabled = true;
             sendBtn.innerHTML = '<span class="loading"></span>Sending Email...';
-            emailStatus.innerHTML = '<div class="status-message status-info">📧 Processing your request...</div>';
+            emailStatus.innerHTML = '<div class="status-message status-info"> Processing your request...</div>';
             
             try {
                 const response = await fetch('/send-email', {
@@ -741,7 +740,7 @@
                     if (result.success) {
                         emailStatus.innerHTML = `
                             <div class="status-message status-success">
-                                ✅ Your artwork has been sent to your email.
+                                Your artwork has been sent to your email.
                                 <br><small>Note: Please allow a couple of seconds for the email to show up.</small>
                             </div>`;
                         document.getElementById('emailForm').reset();
@@ -755,10 +754,10 @@
                 
             } catch (error) {
                 console.error('Error sending email:', error);
-                emailStatus.innerHTML = '<div class="status-message status-error">❌ Failed to send email. Please try downloading instead.</div>';
+                emailStatus.innerHTML = '<div class="status-message status-error"> Failed to send email. Please try downloading instead.</div>';
             } finally {
                 sendBtn.disabled = false;
-                sendBtn.innerHTML = '📧 Send to Email';
+                sendBtn.innerHTML = 'Send to Email';
             }
         }
 
@@ -780,7 +779,7 @@
             
  
             document.getElementById('emailStatus').innerHTML = 
-                '<div class="status-message status-success">✅ Download started! Check your downloads folder.</div>';
+                '<div class="status-message status-success">Download started! Check your downloads folder.</div>';
         }
 
     async function resetFromArduino() {
@@ -816,7 +815,7 @@
                 document.getElementById('sendBtn').disabled = true;
                 document.getElementById('downloadBtn').disabled = true;
                 const got = (payload && payload.colors && payload.colors.length) ? payload.colors.length : 0;
-                resetStatus.innerHTML = `<div class="status-message status-success">✅ Captured ${got} colors from Arduino and updated palette. Generating...</div>`;
+                resetStatus.innerHTML = `<div class="status-message status-success">Captured ${got} colors from Arduino and updated palette. Generating...</div>`;
 
                 // Auto-generate a new piece using the freshly captured palette
                 try {
@@ -826,7 +825,7 @@
                 }
             } catch (e) {
                 console.error('Reset error:', e);
-                resetStatus.innerHTML = `<div class="status-message status-error">❌ ${e.message || 'Failed to reset from Arduino.'}</div>`;
+                resetStatus.innerHTML = `<div class="status-message status-error">${e.message || 'Failed to reset from Arduino.'}</div>`;
             } finally {
                 resetBtn.disabled = false;
                 resetBtn.innerHTML = orig;
