@@ -1,26 +1,20 @@
 [
-    {"color": "#ff6b6b", "percent": 8},
-    {"color": "#4ecdc4", "percent": 6},
-    {"color": "#45b7d1", "percent": 5},
-    {"color": "#f9ca24", "percent": 4},
-    {"color": "#6c5ce7", "percent": 5},
-    {"color": "#a0e7e5", "percent": 4},
-    {"color": "#ff9ff3", "percent": 4},
-    {"color": "#54a0ff", "percent": 5},
-    {"color": "#5f27cd", "percent": 3},
-    {"color": "#00d2d3", "percent": 4},
-    {"color": "#ff9f43", "percent": 4},
-    {"color": "#ff3838", "percent": 3},
-    {"color": "#2ed573", "percent": 4},
-    {"color": "#1e90ff", "percent": 4},
-    {"color": "#ff6348", "percent": 3},
-    {"color": "#7bed9f", "percent": 4},
-    {"color": "#ffa502", "percent": 4},
-    {"color": "#3742fa", "percent": 4},
-    {"color": "#ff4757", "percent": 3},
-    {"color": "#70a1ff", "percent": 4},
-    {"color": "#5352ed", "percent": 4},
-    {"color": "#ff3f34", "percent": 3},
-    {"color": "#18dcff", "percent": 4},
-    {"color": "#7d5fff", "percent": 4}
+  {
+    "color": "#00ffbf"
+  },
+  {
+    "color": "#00bfff"
+  },
+  {
+    "color": "#bf00ff"
+  },
+  {
+    "color": "#ff3f00"
+  },
+  {
+    "color": "#7fff00"
+  },
+  {
+    "color": "#00bfff"
+  }
 ]
