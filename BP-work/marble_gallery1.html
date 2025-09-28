@@ -186,7 +186,6 @@
             min-width: 150px;
         }
 
-        /* Reset row below email/download buttons */
         .reset-row {
             margin-top: 10px;
             display: flex;
@@ -233,7 +232,7 @@
             margin-right: 10px;
         }
 
-        /* Modal styles */
+
         .modal-overlay {
             position: fixed;
             inset: 0;
@@ -302,8 +301,8 @@
             position: relative;
             width: 480px;
             height: 400px;
-            max-width: 600px;   /* pick a max width */
-            aspect-ratio: 1 / 1; /* keeps square, adjust if you want */
+            max-width: 600px; 
+            aspect-ratio: 1 / 1;
             margin: 0 auto;
             overflow: hidden;
         }
@@ -317,7 +316,7 @@
             height: 400px;
             object-fit: contain;
             border-radius: 15px;
-            background: white;   /* consistent background */
+            background: white; 
             display: block;
         }
     </style>
@@ -391,7 +390,7 @@
     <script>
     let currentArtPath = null;
     let currentArtInfo = null;
-    let selectedSilhouette = null; // filename selected via modal
+    let selectedSilhouette = null; 
 
         async function generateArt() {
         const generateBtn = document.getElementById('generateBtn');
@@ -442,7 +441,7 @@
         artContainer.innerHTML = '';
         artContainer.style.position = 'relative';
 
-        // final image element (hidden at the start)
+
         const img = new Image();
         img.src = imagePath;
         img.alt = "Generated Marble Art";
@@ -678,7 +677,6 @@
             resetStatus.innerHTML = '<div class="status-message status-info">Starting Arduino capture and clearing the canvas...</div>';
 
             try {
-                // Call the synchronous endpoint so colors.json is guaranteed updated
                 const resp = await fetch('/arduino-reset', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -688,7 +686,7 @@
                 if (!resp.ok || payload.success === false) {
                     throw new Error(payload.error || 'Reset failed');
                 }
-                // Clear UI state after successful capture
+
                 currentArtPath = null;
                 currentArtInfo = null;
                 artContainer.innerHTML = `
@@ -733,10 +731,8 @@
                     </div>`;
                 document.body.appendChild(overlay);
                 overlay.addEventListener('click', (ev) => { if (ev.target === overlay) closeModal(); });
-                // populate silhouettes when modal is first created
                 loadSilhouettesIntoModal();
             }
-            // reset previous selection and always refresh thumbnails when opening
             selectedSilhouette = null;
             loadSilhouettesIntoModal();
             overlay.style.display = 'flex';
@@ -762,7 +758,6 @@
                     card.appendChild(img);
                     card.appendChild(label);
                     card.onclick = () => {
-                        // enforce single selection by removing class from all and adding to this card
                         document.querySelectorAll('#modalSilhouetteGrid > div').forEach(n=> n.classList.remove('silhouette-selected'));
                         card.classList.add('silhouette-selected');
                         selectedSilhouette = it.filename;
@@ -774,7 +769,6 @@
 
         function confirmSilhouetteSelection(){
             if (!selectedSilhouette){ alert('Please select a silhouette first.'); return; }
-            // optionally close modal and show chosen name in UI
             closeModal();
             const status = document.getElementById('generateStatus');
             if (status) status.innerHTML = `<div class="status-message status-info">Selected silhouette: ${selectedSilhouette}</div>`;
