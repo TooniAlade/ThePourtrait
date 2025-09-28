@@ -45,24 +45,31 @@ TEST_MODE = os.getenv('TEST_MODE', 'true').lower() == 'true'
 
 # Color name mapping - comprehensive list of colors with their hex values
 COLOR_NAMES = {
-    "#ff0000": "Red", "#ff6b6b": "Coral Red", "#ff3838": "Bright Red", "#ff4757": "Cherry Red",
-    "#ff3f34": "Crimson", "#ff6348": "Tomato Red", "#e74c3c": "Soft Red", "#c0392b": "Dark Red",
-    "#ffa502": "Orange", "#ff9f43": "Light Orange", "#f39c12": "Golden Orange", "#e67e22": "Burnt Orange",
-    "#ff7675": "Peach", "#fd79a8": "Pink Orange",
-    "#f9ca24": "Golden Yellow", "#f1c40f": "Bright Yellow", "#fdcb6e": "Soft Yellow",
-    "#e17055": "Amber", "#fddb3a": "Sunshine Yellow",
-    "#2ed573": "Mint Green", "#7bed9f": "Light Green", "#55efc4": "Aqua Green", "#00b894": "Teal Green",
-    "#4ecdc4": "Turquoise", "#27ae60": "Forest Green", "#16a085": "Dark Teal", "#2ecc71": "Emerald",
-    "#1e90ff": "Sky Blue", "#54a0ff": "Light Blue", "#70a1ff": "Soft Blue", "#45b7d1": "Ocean Blue",
-    "#3742fa": "Royal Blue", "#2f3542": "Navy Blue", "#18dcff": "Cyan Blue", "#00d2d3": "Bright Cyan",
-    "#a0e7e5": "Ice Blue", "#74b9ff": "Periwinkle", "#0984e3": "Deep Blue",
-    "#6c5ce7": "Purple", "#5f27cd": "Deep Purple", "#5352ed": "Violet", "#7d5fff": "Light Purple",
-    "#a29bfe": "Lavender", "#9b59b6": "Plum", "#8e44ad": "Dark Purple",
-    "#ff9ff3": "Pink", "#fd79a8": "Rose Pink", "#e84393": "Hot Pink", "#f368e0": "Magenta Pink",
-    "#ff7675": "Salmon Pink", "#fab1a0": "Peach Pink",
-    "#636e72": "Gray", "#2d3436": "Dark Gray", "#ddd": "Light Gray", "#95a5a6": "Silver Gray",
-    "#34495e": "Slate Gray", "#7f8c8d": "Medium Gray",
-    "#ffffff": "White", "#000000": "Black", "#brown": "Brown", "#tan": "Tan"
+    # Exact Arduino 24-color wheel mappings
+    "#ff0000": "Red",
+    "#ff3f00": "Red Orange",
+    "#ff7f00": "Orange",
+    "#ffbf00": "Amber",
+    "#ffff00": "Yellow",
+    "#bfff00": "Yellow Green",
+    "#7fff00": "Lime",
+    "#3fff00": "Lime Green",
+    "#00ff00": "Green",
+    "#00ff3f": "Green Cyan",
+    "#00ff7f": "Spring Green",
+    "#00ffbf": "Aquamarine",
+    "#00ffff": "Cyan",
+    "#00bfff": "Deep Sky Blue",
+    "#007fff": "Azure",
+    "#003fff": "Cobalt Blue",
+    "#0000ff": "Blue",
+    "#3f00ff": "Indigo",
+    "#7f00ff": "Violet",
+    "#bf00ff": "Purple",
+    "#ff00ff": "Magenta",
+    "#ff00bf": "Fuchsia",
+    "#ff007f": "Hot Pink",
+    "#ff003f": "Rose",
 }
 
 def hex_to_rgb(hex_color):
@@ -78,44 +85,8 @@ def color_distance(color1, color2):
 
 def hex_to_color_name(hex_color):
     """Convert hex color to the closest named color"""
-    try:
-        target_rgb = hex_to_rgb(hex_color)
-        closest_color = "Unknown Color"
-        closest_distance = float('inf')
-        
-        for known_hex, name in COLOR_NAMES.items():
-            try:
-                known_rgb = hex_to_rgb(known_hex)
-                distance = color_distance(target_rgb, known_rgb)
-                if distance < closest_distance:
-                    closest_distance = distance
-                    closest_color = name
-            except ValueError:
-                continue
+    return COLOR_NAMES.get(hex_color.lower(), "Unknown Color")
 
-        if closest_distance < 50:
-            return closest_color
-        else:
-            r, g, b = target_rgb
-            if r > g and r > b:
-                if r > 200: return "Bright Red"
-                elif r > 150: return "Red"
-                else: return "Dark Red"
-            elif g > r and g > b:
-                if g > 200: return "Bright Green"
-                elif g > 150: return "Green"
-                else: return "Dark Green"
-            elif b > r and b > g:
-                if b > 200: return "Bright Blue"
-                elif b > 150: return "Blue"
-                else: return "Dark Blue"
-            else:
-                if r > 150 and g > 150: return "Yellow"
-                elif r > 150 and b > 150: return "Purple"
-                elif g > 150 and b > 150: return "Teal"
-                else: return "Gray"
-    except Exception:
-        return "Unknown Color"
 
 @app.route('/')
 def index():
@@ -165,7 +136,6 @@ def generate_art():
             'silhouette': os.path.basename(silhouette_arg) if silhouette_arg else 'Unknown',
             'colors': palette.get('colors', []),   # send exact hexes here now
             'weights': palette.get('weights', []),
-            'seed': 3,
             'timestamp': timestamp
         }
 
@@ -240,41 +210,49 @@ def send_email():
         return jsonify({'error': str(e)}), 500
 
 def send_art_email(name, email, art_path, art_info):
-    """Send email with the marble art attachment.
+    """Send email with the marble art inline below header and as an attachment.
     Returns (success: bool, error_message: Optional[str])
     """
     try:
         # Require email credentials to be present
         if not EMAIL_USER or not EMAIL_PASS:
-            msg = "EMAIL_USER or EMAIL_PASS missing - cannot send email."
-            print(f"❌ {msg}")
-            return False, msg
+            err = "EMAIL_USER or EMAIL_PASS missing - cannot send email."
+            print(f"❌ {err}")
+            return False, err
 
-        # Create message
-        msg = MIMEMultipart()
-        msg['From'] = EMAIL_USER
-        msg['To'] = email
-        msg['Subject'] = f"🎨 Your Beautiful Marble Art - ThePourtrait"
+        # Root container 'mixed' for attachments
+        root = MIMEMultipart('mixed')
+        root['From'] = EMAIL_USER
+        root['To'] = email
+        root['Subject'] = "🎨 Your Beautiful Marble Art - ThePourtrait"
 
         # Create HTML body
-        colors_list = ', '.join(art_info.get('colors', []))
+        raw_colors = art_info.get('colors', []) or []
+        try:
+            color_names_list = ', '.join([hex_to_color_name(c) for c in raw_colors]) if raw_colors else 'N/A'
+        except Exception:
+            color_names_list = ', '.join(raw_colors) if raw_colors else 'N/A'
+
+        inline_cid = 'art_inline_image'
         html_body = f"""
         <html>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
             <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-                <h1 style="color: #667eea; text-align: center;">🎨 Your Marble Masterpiece</h1>
+                <h1 style="color: #667eea; text-align: center;">Your Marble Masterpiece</h1>
+                <div style=\"text-align:center; margin: 16px 0 24px 0;\">
+                    <img src=\"cid:{inline_cid}\" alt=\"Your Marble Art\" style=\"max-width:100%; height:auto; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.12);\" />
+                </div>
                 
                 <p>Dear {name},</p>
                 
                 <p>Thank you for using ThePourtrait! We're excited to share your unique marble art creation.</p>
                 
                 <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin: 20px 0;">
-                    <h3 style="color: #4a5568; margin-top: 0;">🎭 Art Details:</h3>
+                    <h3 style="color: #4a5568; margin-top: 0;">Art Details:</h3>
                     <ul style="list-style: none; padding: 0;">
-                        <li><strong>🖼️ Silhouette:</strong> {art_info.get('silhouette', 'Custom')}</li>
-                        <li><strong>🎨 Colors Used:</strong> {colors_list}</li>
-                        <li><strong>🎲 Seed:</strong> {art_info.get('seed', 'N/A')}</li>
-                        <li><strong>📅 Created:</strong> {datetime.datetime.now().strftime('%B %d, %Y at %I:%M %p')}</li>
+                        <li><strong>Silhouette:</strong> {art_info.get('silhouette', 'Custom')}</li>
+                        <li><strong>Colors Used:</strong> {color_names_list}</li>
+                        <li><strong>Created:</strong> {datetime.datetime.now().strftime('%B %d, %Y at %I:%M %p')}</li>
                     </ul>
                 </div>
                 
@@ -297,14 +275,28 @@ def send_art_email(name, email, art_path, art_info):
         </html>
         """
 
-        msg.attach(MIMEText(html_body, 'html'))
+        # Build a 'related' part to hold the HTML and inline image
+        related = MIMEMultipart('related')
+        alternative = MIMEMultipart('alternative')
+        alternative.attach(MIMEText(html_body, 'html'))
+        related.attach(alternative)
 
-        # Attach the image
         with open(art_path, 'rb') as f:
             img_data = f.read()
-            img = MIMEImage(img_data)
-            img.add_header('Content-Disposition', 'attachment', filename=f'marble_art_{name.replace(" ", "_")}.png')
-            msg.attach(img)
+
+        # Inline image for HTML
+        inline_img = MIMEImage(img_data)
+        inline_img.add_header('Content-ID', f'<{inline_cid}>')
+        inline_img.add_header('Content-Disposition', 'inline; filename="inline_marble_art.png"')
+        related.attach(inline_img)
+
+        # Attach both related (html+inline) and the file attachment to root
+        root.attach(related)
+
+        # Separate attachment for download
+        attachment = MIMEImage(img_data)
+        attachment.add_header('Content-Disposition', 'attachment', filename=f'marble_art_{name.replace(" ", "_")}.png')
+        root.attach(attachment)
 
         # Send email
         print(f"🔐 Attempting to send email using: {EMAIL_USER}")
@@ -320,7 +312,7 @@ def send_art_email(name, email, art_path, art_info):
             server.ehlo()
             print("🔐 Attempting Gmail login (STARTTLS 587)...")
             server.login(EMAIL_USER, EMAIL_PASS)
-            server.send_message(msg)
+            server.send_message(root)
             print(f"✅ Email sent successfully to {email} (STARTTLS 587)")
             return True, None
         except Exception as e1:
@@ -337,17 +329,17 @@ def send_art_email(name, email, art_path, art_info):
                 server.ehlo()
                 print("🔐 Attempting Gmail login (SSL 465)...")
                 server.login(EMAIL_USER, EMAIL_PASS)
-                server.send_message(msg)
+                server.send_message(root)
                 print(f"✅ Email sent successfully to {email} (SSL 465)")
                 return True, None
             except smtplib.SMTPAuthenticationError as e2:
-                msg = f"Gmail authentication failed: {str(e2)}"
-                print(f"❌ {msg}")
-                return False, msg
+                err = f"Gmail authentication failed: {str(e2)}"
+                print(f"❌ {err}")
+                return False, err
             except Exception as e2:
-                msg = f"Email sending failed over SSL 465: {str(e2)}"
-                print(f"❌ {msg}")
-                return False, msg
+                err = f"Email sending failed over SSL 465: {str(e2)}"
+                print(f"❌ {err}")
+                return False, err
             finally:
                 try:
                     if server:
@@ -356,9 +348,9 @@ def send_art_email(name, email, art_path, art_info):
                     pass
 
     except Exception as e:
-        msg = f"Error sending email: {str(e)}"
-        print(f"❌ {msg}")
-        return False, msg
+        err = f"Error sending email: {str(e)}"
+        print(f"❌ {err}")
+        return False, err
 
 @app.route('/download/<filename>')
 def download_art(filename):
