@@ -127,13 +127,22 @@ def generate_art():
             return jsonify({'error': 'Failed to generate art'}), 500
 
         # Read palette JSON we just wrote
-        palette = {'colors': [], 'weights': []}
+        palette = {'colors': [], 'weights': [], 'silhouette': None}
         if os.path.exists(palette_json):
             with open(palette_json, 'r', encoding='utf-8') as f:
                 palette = json.load(f)
 
+        # Prefer silhouette from palette sidecar (renderer knows final choice even if random)
+        silhouette_name = None
+        try:
+            sidecar_sil = palette.get('silhouette')
+            if sidecar_sil:
+                silhouette_name = os.path.basename(sidecar_sil)
+        except Exception:
+            silhouette_name = None
+
         details = {
-            'silhouette': os.path.basename(silhouette_arg) if silhouette_arg else 'Unknown',
+            'silhouette': silhouette_name or (os.path.basename(silhouette_arg) if silhouette_arg else 'Unknown'),
             'colors': palette.get('colors', []),   # send exact hexes here now
             'weights': palette.get('weights', []),
             'timestamp': timestamp

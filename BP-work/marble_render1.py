@@ -233,10 +233,12 @@ def render_marble(input_path: str, colors_path: str, output_path: str, seed: int
     # write the palette we actually used
     if palette_out:
         with open(palette_out, "w", encoding="utf-8") as f:
-            json.dump(
-                {"colors": [rgb01_to_hex(c) for c in colors], "weights": weights},
-                f, ensure_ascii=False
-            )
+            payload = {
+                "colors": [rgb01_to_hex(c) for c in colors],
+                "weights": weights,
+                "silhouette": os.path.basename(input_path) if input_path else None
+            }
+            json.dump(payload, f, ensure_ascii=False)
     bounds = build_bands(weights)  # 1D cumulative
     colors_arr = np.array(colors, dtype=np.float32)  # (N,3)
 
