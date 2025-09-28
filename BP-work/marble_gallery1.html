@@ -335,383 +335,202 @@
 
     <script>
         let currentArtPath = null;
-        let currentArtInfo = null;
+let currentArtInfo = null;
 
-        async function generateArt() {
-            const generateBtn = document.getElementById('generateBtn');
-            const generateStatus = document.getElementById('generateStatus');
-            const sendBtn = document.getElementById('sendBtn');
-            const downloadBtn = document.getElementById('downloadBtn');
-            
-            // Disable button and show loading
-            generateBtn.disabled = true;
-            generateBtn.innerHTML = '<span class="loading"></span>Generating Art...';
-            generateStatus.innerHTML = '<div class="status-message status-info">🎨 Creating your unique marble art...</div>';
-            
-            try {
-                // Call Python script to generate art
-                const response = await fetch('/generate-art', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                });
-                
-                if (response.ok) {
-                    const result = await response.json();
-                    
-                    // Update the art display
-                    displayArt(result.imagePath, result.details);
-                    
-                    // Enable email and download buttons
-                    sendBtn.disabled = false;
-                    downloadBtn.disabled = false;
-                    
-                    generateStatus.innerHTML = '<div class="status-message status-success">✅ Art generated successfully!</div>';
-                } else {
-                    throw new Error('Failed to generate art');
-                }
-                
-            } catch (error) {
-                console.error('Error generating art:', error);
-                generateStatus.innerHTML = '<div class="status-message status-error">❌ Failed to generate art. Please try again.</div>';
-            } finally {
-                // Re-enable button
-                generateBtn.disabled = false;
-                generateBtn.innerHTML = '✨ Generate New Marble Art';
-            }
-        }
+async function generateArt() {
+  const generateBtn = document.getElementById('generateBtn');
+  const generateStatus = document.getElementById('generateStatus');
+  const sendBtn = document.getElementById('sendBtn');
+  const downloadBtn = document.getElementById('downloadBtn');
 
-        function displayArt(imagePath, details) {
-    const artContainer = document.getElementById('artContainer');
-    const artInfo = document.getElementById('artInfo');
-    const artDetails = document.getElementById('artDetails');
-    
-    currentArtPath = imagePath;
-    currentArtInfo = details;
-    
-    // Create the final image (hidden initially)
-    const finalImage = document.createElement('img');
-    finalImage.src = imagePath;
-    finalImage.alt = "Generated Marble Art";
-    finalImage.className = "art-image";
-    finalImage.style.display = 'none';
-    
-    // Set up container
-    artContainer.innerHTML = '';
-    artContainer.style.position = 'relative';
-    artContainer.appendChild(finalImage);
-    
-    // Animation variables (will be set after image loads)
-    let canvas, ctx, W, H;
-    let phase = 1;
-    let spiralTimer = 0;
-    let frame = 0;
-    let paintBlobs = [];
-    let revealBlobs = [];
-    let animationId = null;
-    let onlyWhite = false;
-    let marbleImageData = null;
-    let finalImageData = null;
-    
-    // Color palette based on the art details
-    const palette = [
-        [230, 70, 70],   // Red
-        [60, 120, 230],  // Blue
-        [60, 200, 120],  // Green
-        [255, 140, 0],   // Orange
-        [148, 0, 211],   // Purple
-        [255, 20, 147]   // Deep Pink
-    ];
-    
-    // Wait for final image to load, then create canvas and start animation
-    finalImage.onload = function() {
-        // Get the actual rendered dimensions of the image
-        W = finalImage.offsetWidth || finalImage.naturalWidth;
-        H = finalImage.offsetHeight || finalImage.naturalHeight;
-        
-        // Create animation canvas with image's exact dimensions
-        canvas = document.createElement('canvas');
-        canvas.width = W;
-        canvas.height = H;
-        canvas.style.position = 'absolute';
-        canvas.style.top = '0';
-        canvas.style.left = '0';
-        canvas.style.width = `480px`;
-        canvas.style.height = `400px`;
-        canvas.style.zIndex = '10';
-        canvas.className = "art-image"; // Apply same styling
-        
-        // Add canvas to container
-        artContainer.appendChild(canvas);
-        ctx = canvas.getContext('2d');
-        
-        // Create image data from the final loaded image
-        ctx.drawImage(finalImage, 0, 0, W, H);
-        finalImageData = ctx.getImageData(0, 0, W, H);
-        
-        // Generate marble pattern for intermediate phases
-        marbleImageData = generateMarblePattern();
-        
-        // Start animation
-        startAnimation();
+  generateBtn.disabled = true;
+  generateBtn.innerHTML = '<span class="loading"></span>Generating Art...';
+  generateStatus.innerHTML = '<div class="status-message status-info">🎨 Creating your unique marble art...</div>';
+
+  try {
+    const response = await fetch('/generate-art', { method: 'POST', headers: { 'Content-Type': 'application/json' }});
+    if (!response.ok) throw new Error('Failed to generate art');
+    const result = await response.json();
+
+    displayArt(result.imagePath, result.details, result.palette, result.weights);
+
+    sendBtn.disabled = false;
+    downloadBtn.disabled = false;
+    generateStatus.innerHTML = '<div class="status-message status-success">✅ Art generated successfully!</div>';
+  } catch (e) {
+    console.error(e);
+    generateStatus.innerHTML = '<div class="status-message status-error">❌ Failed to generate art. Please try again.</div>';
+  } finally {
+    generateBtn.disabled = false;
+    generateBtn.innerHTML = '✨ Generate New Marble Art';
+  }
+}
+
+function hexToRgb(hex){
+  const h = hex.replace('#','');
+  const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16);
+  return [r,g,b];
+}
+
+function displayArt(imagePath, details, paletteHex = [], weights = []) {
+  const artContainer = document.getElementById('artContainer');
+  const artInfo = document.getElementById('artInfo');
+  const artDetails = document.getElementById('artDetails');
+
+  currentArtPath = imagePath;
+  currentArtInfo = details;
+
+  // reset container
+  artContainer.innerHTML = '';
+  artContainer.style.position = 'relative';
+
+  // final image element (hidden; we’ll draw it into base canvas for pixel-perfect result)
+  const img = new Image();
+  img.src = imagePath;
+  img.alt = "Generated Marble Art";
+  img.decoding = "sync";
+  img.loading = "eager";
+  img.style.display = 'none';
+  artContainer.appendChild(img);
+
+  // canvases: base (final image), overlay (animation/reveal)
+  const base = document.createElement('canvas');
+  const overlay = document.createElement('canvas');
+  base.style.position = overlay.style.position = 'absolute';
+  base.style.top = overlay.style.top = '0';
+  base.style.left = overlay.style.left = '0';
+  base.style.width = overlay.style.width = '100%';
+  base.style.height = overlay.style.height = '100%';
+  base.style.borderRadius = overlay.style.borderRadius = '15px';
+  overlay.style.zIndex = '10';
+  overlay.style.pointerEvents = 'none';
+
+  artContainer.appendChild(base);
+  artContainer.appendChild(overlay);
+
+  const bctx = base.getContext('2d');
+  const octx = overlay.getContext('2d');
+
+  const PALETTE = (paletteHex && paletteHex.length ? paletteHex : (details.colors||[])).map(hexToRgb);
+  const FALLBACK = [[230,70,70],[60,120,230],[60,200,120],[255,140,0],[148,0,211],[255,20,147]];
+  const palette = PALETTE.length ? PALETTE : FALLBACK;
+
+  // animation state (overlay only)
+  let phase = 1, spiralTimer = 0, frame = 0;
+  let paintBlobs = [], revealBlobs = [];
+  let rafId = null;
+  function noise(x,y,base=0){ return Math.sin(x*0.7+base*0.01)*Math.cos(y*0.7+base*0.01)*0.5; }
+  function pickColor(white=false){ return white ? [255,255,255] : palette[Math.floor(Math.random()*palette.length)]; }
+  function addBlob(color,isReveal=false){
+    const W = overlay.width, H = overlay.height;
+    const blob = {
+      x: isReveal ? 100 + Math.random()*(W-200) : W/2 + (Math.random()-0.5)*120,
+      y: isReveal ? 100 + Math.random()*(H-200) : H/2 + (Math.random()-0.5)*120,
+      r: 5,
+      maxR: isReveal ? 120 + Math.random()*130 : 250 + Math.random()*250,
+      growth: 6 + Math.random()*3,
+      spikiness: isReveal ? 30 + Math.random()*30 : 25 + Math.random()*20,
+      jitter: 3 + Math.random()*3,
+      color, life: 0
     };
-    
-    function generateMarblePattern() {
-        const imageData = ctx.createImageData(W, H);
-        const data = imageData.data;
-        
-        for (let y = 0; y < H; y++) {
-            for (let x = 0; x < W; x++) {
-                const u = x / W;
-                const v = y / H;
-                
-                let t = u;
-                t += 0.1 * Math.sin(v * Math.PI * 8 + 0.3);
-                t += 0.05 * Math.sin(u * Math.PI * 12 + v * Math.PI * 6);
-                t += 0.03 * Math.sin(u * Math.PI * 20 - v * Math.PI * 15);
-                t = (t % 1 + 1) % 1;
-                
-                const colorIndex = Math.floor(t * palette.length);
-                const color = palette[colorIndex % palette.length];
-                const nextColorIndex = (colorIndex + 1) % palette.length;
-                const nextColor = palette[nextColorIndex];
-                const blend = (t * palette.length) % 1;
-                
-                const idx = (y * W + x) * 4;
-                data[idx] = color[0] * (1 - blend) + nextColor[0] * blend;
-                data[idx + 1] = color[1] * (1 - blend) + nextColor[1] * blend;
-                data[idx + 2] = color[2] * (1 - blend) + nextColor[2] * blend;
-                data[idx + 3] = 255;
-            }
-        }
-        
-        return imageData;
+    (isReveal ? revealBlobs : paintBlobs).push(blob);
+  }
+  function drawBlob(ctx, blob, erase=false){
+    ctx.save();
+    const pts=[];
+    for(let a=0; a<360; a+=blob.jitter){
+      const rad=a*Math.PI/180;
+      const n=noise(Math.cos(rad)*0.7+blob.life*0.01, Math.sin(rad)*0.7+blob.life*0.01, blob.life*0.2);
+      const nr=blob.r+n*blob.spikiness;
+      pts.push({x:blob.x+Math.cos(rad)*nr, y:blob.y+Math.sin(rad)*nr});
     }
-    
-    function noise(x, y, base = 0) {
-        return Math.sin(x * 0.7 + base * 0.01) * Math.cos(y * 0.7 + base * 0.01) * 0.5;
+    if (erase){ ctx.globalCompositeOperation='destination-out'; ctx.fillStyle='white'; }
+    else { ctx.globalCompositeOperation='source-over'; ctx.fillStyle=`rgb(${blob.color[0]},${blob.color[1]},${blob.color[2]})`; }
+    ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+    for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.closePath(); ctx.fill(); ctx.restore();
+  }
+  function updatePaintBlobs(){
+    for(const b of paintBlobs){ if(b.r<b.maxR) b.r+=b.growth; b.life++; drawBlob(octx, b, false); }
+  }
+  function applySpiralWave(ctx, t){
+    const W=overlay.width, H=overlay.height;
+    const img=ctx.getImageData(0,0,W,H);
+    const out=ctx.createImageData(W,H);
+    const d=img.data, nd=out.data;
+    for(let y=0;y<H;y++){
+      const off = Math.floor(40 * Math.sin((y/60)+t));
+      for(let x=0;x<W;x++){
+        let sx=x-off; while(sx<0) sx+=W; while(sx>=W) sx-=W;
+        const si=(y*W+sx)*4, ti=(y*W+x)*4;
+        nd[ti]=d[si]; nd[ti+1]=d[si+1]; nd[ti+2]=d[si+2]; nd[ti+3]=d[si+3];
+      }
     }
-    
-    function pickColor(onlyWhite = false) {
-        if (onlyWhite) return [255, 255, 255];
-        return palette[Math.floor(Math.random() * palette.length)];
+    ctx.putImageData(out,0,0);
+  }
+
+  function animate(){
+    // phase 1: pour paint (overlay only)
+    if (phase===1){
+      octx.clearRect(0,0,overlay.width, overlay.height);
+      if(frame%2===0) addBlob(pickColor(false));
+      updatePaintBlobs();
+      if(frame>90) phase=2;
     }
-    
-    function addBlob(color, isReveal = false) {
-        const blob = {
-            x: isReveal ? 
-                100 + Math.random() * (W - 200) : 
-                W/2 + (Math.random() - 0.5) * 120,
-            y: isReveal ? 
-                100 + Math.random() * (H - 200) : 
-                H/2 + (Math.random() - 0.5) * 120,
-            r: 5,
-            maxR: isReveal ? 
-                120 + Math.random() * 130 : 
-                250 + Math.random() * 250,
-            growth: 6 + Math.random() * 3,
-            spikiness: isReveal ? 
-                30 + Math.random() * 30 : 
-                25 + Math.random() * 20,
-            jitter: 3 + Math.random() * 3,
-            color: color,
-            life: 0
-        };
-        
-        if (isReveal) {
-            revealBlobs.push(blob);
-        } else {
-            paintBlobs.push(blob);
-        }
+    // phase 2: spiral warp the paint (overlay only)
+    else if (phase===2){
+      if(frame%2===0) addBlob(pickColor(true));
+      updatePaintBlobs();
+      spiralTimer += 0.15;
+      applySpiralWave(octx, spiralTimer);
+      if(spiralTimer>2) phase=3;
     }
-    
-    function drawBlob(blob, isReveal = false) {
-        ctx.save();
-        
-        const points = [];
-        for (let angle = 0; angle < 360; angle += blob.jitter) {
-            const rad = (angle * Math.PI) / 180;
-            const noiseVal = noise(Math.cos(rad) * 0.7 + blob.life * 0.01,
-                                 Math.sin(rad) * 0.7 + blob.life * 0.01,
-                                 blob.life * 0.2);
-            const noisyR = blob.r + noiseVal * blob.spikiness;
-            const x = blob.x + Math.cos(rad) * noisyR;
-            const y = blob.y + Math.sin(rad) * noisyR;
-            points.push({x, y});
-        }
-        
-        if (isReveal) {
-            ctx.globalCompositeOperation = 'destination-out';
-            ctx.fillStyle = 'rgba(255,255,255,1)';
-        } else {
-            ctx.fillStyle = `rgb(${blob.color[0]}, ${blob.color[1]}, ${blob.color[2]})`;
-        }
-        
-        ctx.beginPath();
-        ctx.moveTo(points[0].x, points[0].y);
-        for (let i = 1; i < points.length; i++) {
-            ctx.lineTo(points[i].x, points[i].y);
-        }
-        ctx.closePath();
-        ctx.fill();
-        
-        ctx.restore();
+    // phase 3: keep carving holes in overlay to reveal base (final image)
+    else if (phase===3){
+      const WHITE_PAINT_EVERY = 20;
+      if (frame % WHITE_PAINT_EVERY === 0 && revealBlobs.length < 40) addBlob([255,255,255], true);
+      for (const rb of revealBlobs){ if(rb.r<rb.maxR) rb.r+=rb.growth; rb.life++; }
+      // erase holes from overlay (reveals crisp base canvas beneath)
+      for (const rb of revealBlobs) drawBlob(octx, rb, true);
+      if (revealBlobs.length > 40 || frame > 300) phase = 4;
     }
-    
-    function updatePaintBlobs() {
-        for (const blob of paintBlobs) {
-            if (blob.r < blob.maxR) {
-                blob.r += blob.growth;
-            }
-            blob.life++;
-            drawBlob(blob);
-        }
+    // phase 4: gracefully fade overlay and stop
+    else if (phase===4){
+      overlay.style.transition = 'opacity 0.6s ease';
+      overlay.style.opacity = '0';
+      setTimeout(()=>{ overlay.remove(); }, 650);
+      return;
     }
-    
-    function applySpiralWave(imageData, t) {
-        const newImageData = ctx.createImageData(W, H);
-        const data = imageData.data;
-        const newData = newImageData.data;
-        
-        for (let y = 0; y < H; y++) {
-            const offset = Math.floor(40 * Math.sin((y / 60.0) + t));
-            
-            for (let x = 0; x < W; x++) {
-                let sourceX = x - offset;
-                
-                while (sourceX < 0) sourceX += W;
-                while (sourceX >= W) sourceX -= W;
-                
-                const sourceIdx = (y * W + sourceX) * 4;
-                const targetIdx = (y * W + x) * 4;
-                
-                newData[targetIdx] = data[sourceIdx];
-                newData[targetIdx + 1] = data[sourceIdx + 1];
-                newData[targetIdx + 2] = data[sourceIdx + 2];
-                newData[targetIdx + 3] = data[sourceIdx + 3];
-            }
-        }
-        
-        return newImageData;
-    }
-    
-    function animate() {
-        ctx.fillStyle = 'white';
-        ctx.fillRect(0, 0, W, H);
-        
-        if (phase === 1) {
-            if (frame % 2 === 0) {
-                addBlob(pickColor());
-            }
-            updatePaintBlobs();
-            
-            if (frame > 90) {
-                onlyWhite = true;
-                phase = 2;
-            }
-            
-        } else if (phase === 2) {
-            if (frame % 2 === 0) {
-                addBlob(pickColor(true));
-            }
-            
-            ctx.fillStyle = 'white';
-            ctx.fillRect(0, 0, W, H);
-            updatePaintBlobs();
-            
-            const paintedImageData = ctx.getImageData(0, 0, W, H);
-            spiralTimer += 0.15;
-            const warpedImageData = applySpiralWave(paintedImageData, spiralTimer);
-            ctx.putImageData(warpedImageData, 0, 0);
-            
-            if (spiralTimer > 2) {
-                phase = 3;
-            }
-            
-        } else if (phase === 3) {
-            if (frame % 2 === 0) {
-                addBlob(pickColor(true));
-            }
-            
-            ctx.fillStyle = 'white';
-            ctx.fillRect(0, 0, W, H);
-            updatePaintBlobs();
-            
-            const paintedImageData = ctx.getImageData(0, 0, W, H);
-            spiralTimer += 0.15;
-            const warpedImageData = applySpiralWave(paintedImageData, spiralTimer);
-            ctx.putImageData(warpedImageData, 0, 0);
-            
-            if (frame % 3 === 0 && revealBlobs.length < 40) {
-                addBlob([255, 255, 255], true);
-            }
-            
-            // Use the actual final image instead of generated marble
-            if (finalImageData) {
-                ctx.putImageData(finalImageData, 0, 0);
-            }
-            
-            ctx.putImageData(warpedImageData, 0, 0);
-            
-            ctx.save();
-            for (const blob of revealBlobs) {
-                if (blob.r < blob.maxR) {
-                    blob.r += blob.growth;
-                }
-                blob.life++;
-            }
-            
-            ctx.globalCompositeOperation = 'destination-out';
-            for (const blob of revealBlobs) {
-                drawBlob(blob, true);
-            }
-            ctx.restore();
-            
-            const revealPercentage = Math.min(revealBlobs.reduce((sum, blob) => 
-                sum + (Math.PI * blob.r * blob.r), 0) / (W * H), 0.95);
-            
-            if (revealPercentage > 0.9 || frame > 400) {
-                phase = 4;
-            }
-            
-        } else if (phase === 4) {
-            // Animation complete - hide canvas and show final image
-            canvas.style.display = 'none';
-            finalImage.style.display = 'block';
-            return; // Stop animation
-        }
-        
-        frame++;
-        animationId = requestAnimationFrame(animate);
-    }
-    
-    function startAnimation() {
-        if (animationId) {
-            cancelAnimationFrame(animationId);
-        }
-        phase = 1;
-        spiralTimer = 0;
-        frame = 0;
-        paintBlobs = [];
-        revealBlobs = [];
-        onlyWhite = false;
-        
-        animate();
-    }
-    
-    // Show art details immediately
-    artDetails.innerHTML = `
-        <strong>Silhouette:</strong> ${details.silhouette}<br>
-        <strong>Colors:</strong> ${details.colors.join(', ')}<br>
-        <strong>Seed:</strong> ${details.seed}<br>
-        <strong>Generated:</strong> ${new Date().toLocaleString()}
-    `;
-    artInfo.style.display = 'block';
-    
-    // Enable email and download buttons
-    document.getElementById('sendBtn').disabled = false;
-    document.getElementById('downloadBtn').disabled = false;
+    frame++; rafId = requestAnimationFrame(animate);
+  }
+
+  img.onload = function(){
+    // size canvases to the image’s natural size (keeps things sharp). CSS scales both together.
+    base.width = overlay.width  = img.naturalWidth;
+    base.height= overlay.height = img.naturalHeight;
+
+    // keep container’s aspect locked to image while responsive
+    artContainer.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
+
+    // draw crisp final image once (base canvas never changes)
+    bctx.imageSmoothingEnabled = true;
+    bctx.clearRect(0,0,base.width,base.height);
+    bctx.drawImage(img, 0, 0, base.width, base.height);
+
+    // go!
+    animate();
+  };
+
+  // info panel
+  artDetails.innerHTML = `
+    <strong>Silhouette:</strong> ${details.silhouette || 'Custom'}<br>
+    <strong>Colors:</strong> ${(details.colors || paletteHex || []).join(', ')}<br>
+    <strong>Seed:</strong> ${details.seed ?? 'N/A'}<br>
+    <strong>Generated:</strong> ${new Date().toLocaleString()}
+  `;
+  artInfo.style.display = 'block';
+  document.getElementById('sendBtn').disabled = false;
+  document.getElementById('downloadBtn').disabled = false;
 }
 
         async function sendEmail(event) {

@@ -12,6 +12,7 @@ import datetime
 import uuid
 import base64
 import math
+from marble_render1 import parse_colors, DEFAULT_COLORS
 
 app = Flask(__name__)
 CORS(app)
@@ -19,7 +20,7 @@ CORS(app)
 # Configuration
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR = os.path.join(SCRIPT_DIR, 'generated_art')
-MARBLE_SCRIPT = os.path.join(SCRIPT_DIR, 'marble_combined.py')
+MARBLE_SCRIPT = os.path.join(SCRIPT_DIR, 'marble_render1.py')
 
 # Create output directory if it doesn't exist
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -117,7 +118,7 @@ def hex_to_color_name(hex_color):
 
 @app.route('/')
 def index():
-    with open(os.path.join(SCRIPT_DIR, 'marble1.html'), 'r', encoding='utf-8') as f:
+    with open(os.path.join(SCRIPT_DIR, 'marble_gallery1.html'), 'r', encoding='utf-8') as f:
         return f.read()
 
 @app.route('/generate-art', methods=['POST'])
@@ -128,26 +129,50 @@ def generate_art():
         output_filename = f'marble_art_{timestamp}_{art_id}.png'
         output_path = os.path.join(OUTPUT_DIR, output_filename)
 
-        python_exe = sys.executable
-        cmd = [python_exe, MARBLE_SCRIPT, '--output', output_path, '--no-preview']
-        result = subprocess.run(cmd, capture_output=True, text=True, cwd=SCRIPT_DIR)
+        palette_json = output_path + '.palette.json'  # sidecar
 
+        python_exe = sys.executable
+        cmd = [
+            python_exe, MARBLE_SCRIPT,
+            '--output', output_path,
+            '--palette-out', palette_json,
+            '--no-preview'
+        ]
+
+        env = os.environ.copy()
+        env['PYTHONIOENCODING'] = 'utf-8'
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=SCRIPT_DIR, env=env)
         if result.returncode != 0:
+            print(f"Error running marble script: {result.stderr}")
             return jsonify({'error': 'Failed to generate art'}), 500
 
-        gif_filename = output_filename.replace(".png", ".gif")
-        gif_path = os.path.join(OUTPUT_DIR, gif_filename)
+        # Read palette JSON we just wrote
+        palette = {'colors': [], 'weights': []}
+        if os.path.exists(palette_json):
+            with open(palette_json, 'r', encoding='utf-8') as f:
+                palette = json.load(f)
 
-        details = {'silhouette': 'Unknown','colors': [],'seed': 3,'timestamp': timestamp}
+        details = {
+            'silhouette': 'Unknown',
+            'colors': palette.get('colors', []),   # send exact hexes here now
+            'weights': palette.get('weights', []),
+            'seed': 3,
+            'timestamp': timestamp
+        }
+
+        if not os.path.exists(output_path):
+            return jsonify({'error': 'Art file was not created'}), 500
 
         return jsonify({
             'success': True,
             'imagePath': f'/art/{output_filename}',
-            'gifPath': f'/art/{gif_filename}',
             'artId': art_id,
-            'details': details
+            'details': details,
+            'palette': palette.get('colors', []),
+            'weights': palette.get('weights', [])
         })
     except Exception as e:
+        print(f"Error in generate_art: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/art/<filename>')
@@ -312,6 +337,20 @@ def demo_art():
         return send_from_directory(SCRIPT_DIR, 'marble_output.png')
     else:
         return jsonify({'error': 'Demo art not found'}), 404
+@app.route("/palette")
+def get_palette():
+    colors, weights = parse_colors(DEFAULT_COLORS)
+
+    # Convert normalized floats (0–1) into [R,G,B] ints
+    rgb_colors = [
+        [int(r*255), int(g*255), int(b*255)]
+        for (r, g, b) in colors
+    ]
+
+    return jsonify({
+        "colors": rgb_colors,
+        "weights": weights
+    })
 
 if __name__ == '__main__':
     print("🎨 Starting ThePourtrait Gallery Server...")
