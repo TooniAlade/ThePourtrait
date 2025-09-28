@@ -380,11 +380,11 @@ function displayArt(imagePath, details, paletteHex = [], weights = []) {
   currentArtPath = imagePath;
   currentArtInfo = details;
 
-  // reset container
+
   artContainer.innerHTML = '';
   artContainer.style.position = 'relative';
 
-  // final image element (hidden; we’ll draw it into base canvas for pixel-perfect result)
+  // final image element (hidden at the start)
   const img = new Image();
   img.src = imagePath;
   img.alt = "Generated Marble Art";
@@ -393,7 +393,6 @@ function displayArt(imagePath, details, paletteHex = [], weights = []) {
   img.style.display = 'none';
   artContainer.appendChild(img);
 
-  // canvases: base (final image), overlay (animation/reveal)
   const base = document.createElement('canvas');
   const overlay = document.createElement('canvas');
   base.style.position = overlay.style.position = 'absolute';
@@ -415,7 +414,7 @@ function displayArt(imagePath, details, paletteHex = [], weights = []) {
   const FALLBACK = [[230,70,70],[60,120,230],[60,200,120],[255,140,0],[148,0,211],[255,20,147]];
   const palette = PALETTE.length ? PALETTE : FALLBACK;
 
-  // animation state (overlay only)
+  // animation state 
   let phase = 1, spiralTimer = 0, frame = 0;
   let paintBlobs = [], revealBlobs = [];
   let rafId = null;
@@ -490,7 +489,8 @@ function displayArt(imagePath, details, paletteHex = [], weights = []) {
       const WHITE_PAINT_EVERY = 20;
       if (frame % WHITE_PAINT_EVERY === 0 && revealBlobs.length < 40) addBlob([255,255,255], true);
       for (const rb of revealBlobs){ if(rb.r<rb.maxR) rb.r+=rb.growth; rb.life++; }
-      // erase holes from overlay (reveals crisp base canvas beneath)
+
+      // erase holes from overlay 
       for (const rb of revealBlobs) drawBlob(octx, rb, true);
       if (revealBlobs.length > 40 || frame > 300) phase = 4;
     }
@@ -505,23 +505,21 @@ function displayArt(imagePath, details, paletteHex = [], weights = []) {
   }
 
   img.onload = function(){
-    // size canvases to the image’s natural size (keeps things sharp). CSS scales both together.
     base.width = overlay.width  = img.naturalWidth;
     base.height= overlay.height = img.naturalHeight;
 
-    // keep container’s aspect locked to image while responsive
     artContainer.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
 
-    // draw crisp final image once (base canvas never changes)
+
     bctx.imageSmoothingEnabled = true;
     bctx.clearRect(0,0,base.width,base.height);
     bctx.drawImage(img, 0, 0, base.width, base.height);
 
-    // go!
+
     animate();
   };
 
-  // info panel
+
   artDetails.innerHTML = `
     <strong>Silhouette:</strong> ${details.silhouette || 'Custom'}<br>
     <strong>Colors:</strong> ${(details.colors || paletteHex || []).join(', ')}<br>
@@ -546,7 +544,6 @@ function displayArt(imagePath, details, paletteHex = [], weights = []) {
                 return;
             }
             
-            // Disable button and show loading
             sendBtn.disabled = true;
             sendBtn.innerHTML = '<span class="loading"></span>Sending Email...';
             emailStatus.innerHTML = '<div class="status-message status-info">📧 Processing your request...</div>';
@@ -570,8 +567,8 @@ function displayArt(imagePath, details, paletteHex = [], weights = []) {
                     if (result.success) {
                         emailStatus.innerHTML = `
                             <div class="status-message status-success">
-                                ✅ Request processed! Your art is ready for download or email delivery.
-                                <br><small>Note: Email service may be temporarily unavailable.</small>
+                                ✅ Your artwork has been sent to your email.
+                                <br><small>Note: Please allow a couple of seconds for the email to show up.</small>
                             </div>`;
                         document.getElementById('emailForm').reset();
                     } else {
@@ -584,9 +581,8 @@ function displayArt(imagePath, details, paletteHex = [], weights = []) {
                 
             } catch (error) {
                 console.error('Error sending email:', error);
-                emailStatus.innerHTML = '<div class="status-message status-error">❌ Failed to process request. Please try downloading instead.</div>';
+                emailStatus.innerHTML = '<div class="status-message status-error">❌ Failed to send email. Please try downloading instead.</div>';
             } finally {
-                // Re-enable button
                 sendBtn.disabled = false;
                 sendBtn.innerHTML = '📧 Send to Email';
             }
@@ -598,10 +594,9 @@ function displayArt(imagePath, details, paletteHex = [], weights = []) {
                 return;
             }
             
-            // Extract filename from path
             const filename = currentArtPath.split('/').pop();
             
-            // Create download link
+
             const link = document.createElement('a');
             link.href = `/download/${filename}`;
             link.download = `marble_art_${new Date().toISOString().slice(0,10)}.png`;
@@ -609,36 +604,12 @@ function displayArt(imagePath, details, paletteHex = [], weights = []) {
             link.click();
             document.body.removeChild(link);
             
-            // Show success message
+ 
             document.getElementById('emailStatus').innerHTML = 
                 '<div class="status-message status-success">✅ Download started! Check your downloads folder.</div>';
         }
 
-        // Enable send button when art is generated
-        function enableEmailSection() {
-            document.getElementById('sendBtn').disabled = false;
-            document.getElementById('downloadBtn').disabled = false;
-        }
 
-        // Demo function for testing (remove when backend is ready)
-        function generateArtDemo() {
-            const demoArt = {
-                imagePath: 'marble_output.png',
-                details: {
-                    silhouette: 'starrynight',
-                    colors: ['Deep Purple', 'Crimson', 'Ice Blue', 'Light Green', 'Bright Cyan', 'Orange'],
-                    seed: 42
-                }
-            };
-            
-            displayArt(demoArt.imagePath, demoArt.details);
-            document.getElementById('sendBtn').disabled = false;
-            document.getElementById('downloadBtn').disabled = false;
-            document.getElementById('generateStatus').innerHTML = '<div class="status-message status-success">✅ Demo art loaded!</div>';
-        }
-
-        // For demo purposes - replace generateArt with generateArtDemo temporarily
-        // generateArt = generateArtDemo;
     </script>
 </body>
 </html>
