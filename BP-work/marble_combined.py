@@ -449,6 +449,7 @@ def animate_reveal(col: np.ndarray, inside: np.ndarray, output_path: str,
 
     pygame.quit()
 
+
 def main():
     p = argparse.ArgumentParser(description="Generate a marbled image inside a silhouette using color ratios. Randomly selects from silhouettes folder by default.")
     p.add_argument("--input", default=DEFAULT_INPUT, help="Path to silhouette image (PNG with black silhouette on white). If not specified, randomly selects from silhouettes/ folder")
