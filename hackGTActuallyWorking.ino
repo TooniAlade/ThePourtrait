@@ -23,9 +23,22 @@ Adafruit_NeoPixel outer(OUTER_COUNT, OUTER_PIN, NEO_RGBW + NEO_KHZ800);
 Adafruit_NeoPixel inner(INNER_COUNT, INNER_PIN, NEO_RGB + NEO_KHZ800);
 
 int32_t encoder_position;
-int wrappedValue;
+int wrappedValue = 0;
 int currIteration = 0;
 bool prevButtonState = false;
+
+int inPin = 2;    // the number of the input pin
+int outPin = 13;  // the number of the output pin
+
+int LEDstate = HIGH;  // the current state of the output pin
+int reading;          // the current reading from the input pin
+int previous = LOW;   // the previous reading from the input pin
+
+// the following variables are long because the time, measured in miliseconds,
+// will quickly become a bigger number than can be stored in an int.
+long time = 0;       // the last time the output pin was toggled
+long debounce = 50;  // the debounce time, increase if the output flickers
+
 
 // Inner strip (NEO_RGB) – unchanged
 uint32_t innerColors[24] = {
@@ -49,6 +62,10 @@ uint32_t chosenColors[6];
 void setup() {
   Serial.begin(115200);
   while (!Serial) delay(10);
+
+  pinMode(inPin, INPUT);
+  digitalWrite(inPin, HIGH);  // turn on the built in pull-up resistor
+  pinMode(outPin, OUTPUT);
 
   // Initialize seesaw
   if (!ss.begin(SEESAW_ADDR) || !sspixel.begin(SEESAW_ADDR)) {
@@ -75,63 +92,138 @@ void setup() {
 
   // Fill outer and inner with initial colors
   for (int i = 0; i < OUTER_COUNT; i++) {
-    outer.setPixelColor(i, innerColors[i % 24]);
+    outer.setPixelColor(23-i, innerColors[i % 24]);
   }
   outer.show();
+
+  inner.fill(innerColors[wrappedValue]);
+  inner.show();
+
 }
 
 void loop() {
 
   if (currIteration < 6) {
-  bool currButtonState = !(ss.digitalRead(SS_SWITCH));
+    bool currButtonState = !(ss.digitalRead(SS_SWITCH));
 
-  if ((currButtonState) && (!prevButtonState)) {
-    // Serial.println("pressed");
-  }
-
-  if ((!currButtonState) && (prevButtonState)) {
-    // Serial.println("released");
-    // Serial.print("wrapped position is ");
-    // Serial.println(wrappedValue);
-
-    // Fill main strip with the same color as inner
-    uint32_t fillColor = stripColors[wrappedValue];
-    for (int i = currIteration * 24; i < currIteration * 24 + 24; i++) {
-      strip.setPixelColor(i, fillColor);
+    if ((currButtonState) && (!prevButtonState)) {
+      // Serial.println("pressed");
     }
-    strip.show();
-    chosenColors[currIteration] = stripColors[wrappedValue];
-    currIteration++;
-  }
 
-  prevButtonState = currButtonState;
+    if ((!currButtonState) && (prevButtonState)) {
+      // Serial.println("released");
+      // Serial.print("wrapped position is ");
+      // Serial.println(wrappedValue);
 
-  // Encoder logic
-  int32_t new_position = ss.getEncoderPosition();
-  if (encoder_position != new_position) {
-    wrappedValue = new_position % 24;
-    if (wrappedValue < 0) wrappedValue += 24;
+      // Fill main strip with the same color as inner
+      uint32_t fillColor = stripColors[wrappedValue];
+      for (int i = currIteration * 24; i < currIteration * 24 + 24; i++) {
+        strip.setPixelColor(i, fillColor);
+      }
+      strip.show();
+      chosenColors[currIteration] = stripColors[wrappedValue];
+      currIteration++;
+    }
 
-    // Serial.print("wrapped position is ");
-    // Serial.println(wrappedValue);
+    prevButtonState = currButtonState;
 
-    // Update inner strip with selected color
-    inner.fill(innerColors[wrappedValue]);
-    inner.show();
+    // Encoder logic
+    int32_t new_position = ss.getEncoderPosition();
+    if (encoder_position != new_position) {
+      wrappedValue = new_position % 24;
+      if (wrappedValue < 0) wrappedValue += 24;
 
-    encoder_position = new_position;
-  }
+      // Serial.print("wrapped position is ");
+      // Serial.println(wrappedValue);
 
-  delay(10);
+      // Update inner strip with selected color
+      inner.fill(innerColors[wrappedValue]);
+      inner.show();
+
+      encoder_position = new_position;
+    }
+
+    delay(10);
   }
   if (currIteration == 6) {
-    String finalString = "";
+    inner.fill(innerColors[wrappedValue]);
+
+    outer.fill(innerColors[wrappedValue]);
+
+    outer.show();
+    inner.show();
 
 
-    for (int i = 0; i < 6; i++) 
-    { Serial.println(chosenColors[i]); 
-      // Serial.println(chosenTimes[])
+    // for (int i = 0; i < 6; i++) {
+    //   Serial.println(chosenColors[i]);
+    //   // Serial.println(chosenTimes[])
+    // }
+    // currIteration++;
+  }
+
+  if (currIteration == 6) {
+
+    int switchstate;
+
+    reading = digitalRead(inPin);
+
+    // If the switch changed, due to bounce or pressing...
+    if (reading != previous) {
+      // reset the debouncing timer
+      time = millis();
     }
-    currIteration++;
+
+    if ((millis() - time) > debounce) {
+      // whatever the switch is at, its been there for a long time
+      // so lets settle on it!
+      switchstate = reading;
+
+      // Now invert the output on the pin13 LED
+      if (switchstate == HIGH) {
+        LEDstate = LOW;
+      } else {
+        LEDstate = HIGH;
+        // Serial.println("TILT");
+        for (int i = 0; i < 6; i++) {
+          Serial.println(chosenColors[i]);
+          // Serial.println(chosenTimes[])
+        }
+        currIteration++;
+      }
+    }
+    digitalWrite(outPin, LEDstate);
+
+    // Save the last reading so we keep a running tally
+    previous = reading;
+  }
+
+  if (currIteration > 6) {
+    colorWipe(strip.Color(0, 0, 0), 50);       // Red
+    colorOuterWipe(strip.Color(0, 0, 0), 50);  // Red
+    colorInnerWipe(strip.Color(0, 0, 0), 50);  // Red
+  }
+}
+
+void colorWipe(uint32_t color, int wait) {
+  for (int i = 0; i < strip.numPixels(); i++) {  // For each pixel in strip...
+    strip.setPixelColor(i, color);               //  Set pixel's color (in RAM)
+    strip.show();                                //  Update strip to match
+    delay(wait);                                 //  Pause for a moment
+  }
+}
+
+void colorOuterWipe(uint32_t color, int wait) {
+  for (int i = 0; i < outer.numPixels(); i++) {  // For each pixel in strip...
+    outer.setPixelColor(i, color);               //  Set pixel's color (in RAM)
+    outer.show();                                //  Update strip to match
+    delay(wait);                                 //  Pause for a moment
+  }
+}
+
+void colorInnerWipe(uint32_t color, int wait) {
+  for (int i = 0; i < inner.numPixels(); i++) {  // For each pixel in strip...
+    inner.setPixelColor(i, color);               //  Set pixel's color (in RAM)
+    inner.show();                                //  Update strip to match
+    delay(wait);                                 //  Pause for a moment
   }
 }
