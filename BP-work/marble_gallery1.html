@@ -279,7 +279,7 @@
 </head>
 <body>
     <div class="header">
-        <h1>🎨 ThePourtrait Gallery</h1>
+        <h1>ThePourtrait Gallery</h1>
         <p>Create beautiful marble art with interactive paint pouring</p>
     </div>
 
@@ -291,22 +291,22 @@
                 </div>
             </div>
             <div class="art-info" id="artInfo" style="display: none;">
-                <h3>🎲 Generated Art Details</h3>
+                <h3>Generated Art Details</h3>
                 <p id="artDetails">Colors and silhouette information will appear here</p>
             </div>
         </div>
 
         <div class="interaction-panel">
             <div class="generate-section">
-                <h2>🎭 Create Your Art</h2>
+                <h2>Create Your Art</h2>
                 <button class="generate-btn" id="generateBtn" onclick="generateArt()">
-                    ✨ Generate New Marble Art
+                    Generate New Marble Art
                 </button>
                 <div id="generateStatus"></div>
             </div>
 
             <div class="email-section">
-                <h2>📧 Get Your Art</h2>
+                <h2>Get Your Art</h2>
                 <form class="email-form" id="emailForm" onsubmit="sendEmail(event)">
                     <div class="form-group">
                         <label for="userName">Your Name:</label>
@@ -320,11 +320,11 @@
                     </div>
                     <div class="button-group">
                         <button type="submit" class="send-btn" id="sendBtn" disabled>
-                            📧 Send to Email
+                            Send to Email
                         </button>
                         <button type="button" class="send-btn" id="downloadBtn" disabled onclick="downloadArt()" 
                                 style="background: linear-gradient(45deg, #6c5ce7, #a29bfe);">
-                            💾 Download Art
+                            Download Art
                         </button>
                     </div>
                 </form>
@@ -345,7 +345,7 @@
 
         generateBtn.disabled = true;
         generateBtn.innerHTML = '<span class="loading"></span>Generating Art...';
-        generateStatus.innerHTML = '<div class="status-message status-info">🎨 Creating your unique marble art...</div>';
+        generateStatus.innerHTML = '<div class="status-message status-info">Creating your unique marble art...</div>';
 
         try {
             const response = await fetch('/generate-art', { method: 'POST', headers: { 'Content-Type': 'application/json' }});
@@ -356,13 +356,13 @@
 
             sendBtn.disabled = false;
             downloadBtn.disabled = false;
-            generateStatus.innerHTML = '<div class="status-message status-success">✅ Art generated successfully!</div>';
+            generateStatus.innerHTML = '<div class="status-message status-success">Art generated successfully!</div>';
         } catch (e) {
             console.error(e);
-            generateStatus.innerHTML = '<div class="status-message status-error">❌ Failed to generate art. Please try again.</div>';
+            generateStatus.innerHTML = '<div class="status-message status-error">Failed to generate art. Please try again.</div>';
         } finally {
             generateBtn.disabled = false;
-            generateBtn.innerHTML = '✨ Generate New Marble Art';
+            generateBtn.innerHTML = 'Generate New Marble Art';
         }
         }
 
