@@ -69,7 +69,7 @@
         }
 
         .art-info h3 {
-            color: #4a5568;
+            color: #000000;
             margin-bottom: 1rem;
         }
 
@@ -86,7 +86,7 @@
         }
 
         .generate-section h2 {
-            color: #4a5568;
+            color: #000000;
             margin-bottom: 1rem;
             font-size: 1.5rem;
         }
@@ -116,7 +116,7 @@
         }
 
         .email-section h2 {
-            color: #4a5568;
+            color: #000000;
             margin-bottom: 1rem;
             font-size: 1.5rem;
         }
@@ -133,7 +133,7 @@
         }
 
         .form-group label {
-            color: #4a5568;
+            color: #000000;
             font-weight: 600;
             margin-bottom: 0.5rem;
         }
@@ -233,6 +233,41 @@
             margin-right: 10px;
         }
 
+        /* Modal styles */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 12px;
+            max-width: 720px;
+            width: 90%;
+            padding: 1rem;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px;
+        }
+
+        .modal-body { max-height: 60vh; overflow:auto; }
+
+        .modal-close-btn {
+            background: transparent; border: none; font-size: 1.25rem; cursor: pointer; padding:6px;
+        }
+
+        .silhouette-selected {
+            border: 2px dashed #4e0aae !important;
+            outline: 2px solid rgba(102,126,234,0.14);
+        }
+
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
@@ -289,7 +324,7 @@
 </head>
 <body>
     <div class="header">
-        <h1>ThePourtrait Gallery</h1>
+        <h1> The Pourtrait Gallery</h1>
         <p>Create beautiful marble art with interactive paint pouring</p>
     </div>
 
@@ -312,6 +347,9 @@
                 <button class="generate-btn" id="generateBtn" onclick="generateArt()">
                     Generate New Marble Art
                 </button>
+                <button class="generate-btn" id="openModalBtn" style="margin-top:8px; background: #fff; color:#333; border:1px solid #ddd;" onclick="openModal()">
+                    Open Modal
+                </button>
                 <div id="generateStatus"></div>
             </div>
 
@@ -321,7 +359,7 @@
                     <div class="form-group">
                         <label for="userName">Your Name:</label>
                         <input type="text" id="userName" name="userName" required 
-                               placeholder="Enter your full name">
+                               placeholder="Enter a nickname">
                     </div>
                     <div class="form-group">
                         <label for="userEmail">Email Address:</label>
@@ -351,8 +389,9 @@
     </div>
 
     <script>
-        let currentArtPath = null;
-        let currentArtInfo = null;
+    let currentArtPath = null;
+    let currentArtInfo = null;
+    let selectedSilhouette = null; // filename selected via modal
 
         async function generateArt() {
         const generateBtn = document.getElementById('generateBtn');
@@ -365,7 +404,9 @@
         generateStatus.innerHTML = '<div class="status-message status-info">Creating your unique marble art...</div>';
 
         try {
-            const response = await fetch('/generate-art', { method: 'POST', headers: { 'Content-Type': 'application/json' }});
+            const payload = {};
+            if (selectedSilhouette) payload.silhouette = selectedSilhouette;
+            const response = await fetch('/generate-art', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             if (!response.ok) throw new Error('Failed to generate art');
             const result = await response.json();
 
@@ -641,7 +682,7 @@
                 const resp = await fetch('/arduino-reset', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ colorTimeout: 20 })
+                    body: JSON.stringify({ colorTimeout: 60 })
                 });
                 const payload = await resp.json().catch(() => ({}));
                 if (!resp.ok || payload.success === false) {
@@ -667,6 +708,81 @@
                 resetBtn.disabled = false;
                 resetBtn.innerHTML = orig;
             }
+        }
+
+        // Modal handlers
+        function openModal() {
+            let overlay = document.getElementById('modalOverlay');
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'modalOverlay';
+                overlay.className = 'modal-overlay';
+                overlay.innerHTML = `
+                    <div class="modal" role="dialog" aria-modal="true">
+                        <div class="modal-header">
+                            <h3>Select a Silhouette</h3>
+                            <button class="modal-close-btn" onclick="closeModal()">✕</button>
+                        </div>
+                        <div class="modal-body">
+                            <div id="modalSilhouetteGrid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(120px,1fr)); gap:8px;"></div>
+                        </div>
+                        <div style="margin-top:12px; text-align:right;">
+                            <button class="send-btn" onclick="confirmSilhouetteSelection()">Use Selected Silhouette</button>
+                            <button class="modal-close-btn" style="margin-left:8px;" onclick="closeModal()">Close</button>
+                        </div>
+                    </div>`;
+                document.body.appendChild(overlay);
+                overlay.addEventListener('click', (ev) => { if (ev.target === overlay) closeModal(); });
+                // populate silhouettes when modal is first created
+                loadSilhouettesIntoModal();
+            }
+            // reset previous selection and always refresh thumbnails when opening
+            selectedSilhouette = null;
+            loadSilhouettesIntoModal();
+            overlay.style.display = 'flex';
+        }
+
+        async function loadSilhouettesIntoModal(){
+            try{
+                const res = await fetch('/silhouettes-list');
+                const data = await res.json();
+                const grid = document.getElementById('modalSilhouetteGrid');
+                if (!grid) return;
+                grid.innerHTML = '';
+                data.items.forEach(it => {
+                    const card = document.createElement('div');
+                    card.style = 'border:1px solid #eee; padding:6px; border-radius:8px; background:#fff; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:6px;';
+                    const img = document.createElement('img');
+                    img.src = it.imagePath;
+                    img.alt = it.filename;
+                    img.style = 'width:100%; height:80px; object-fit:contain; border-radius:6px; background:#fafafa;';
+                    const label = document.createElement('div');
+                    label.textContent = it.filename;
+                    label.style = 'font-size:0.9rem; text-align:center; padding-top:4px;';
+                    card.appendChild(img);
+                    card.appendChild(label);
+                    card.onclick = () => {
+                        // enforce single selection by removing class from all and adding to this card
+                        document.querySelectorAll('#modalSilhouetteGrid > div').forEach(n=> n.classList.remove('silhouette-selected'));
+                        card.classList.add('silhouette-selected');
+                        selectedSilhouette = it.filename;
+                    };
+                    grid.appendChild(card);
+                });
+            }catch(err){ console.error('Failed to load silhouettes for modal', err); }
+        }
+
+        function confirmSilhouetteSelection(){
+            if (!selectedSilhouette){ alert('Please select a silhouette first.'); return; }
+            // optionally close modal and show chosen name in UI
+            closeModal();
+            const status = document.getElementById('generateStatus');
+            if (status) status.innerHTML = `<div class="status-message status-info">Selected silhouette: ${selectedSilhouette}</div>`;
+        }
+
+        function closeModal() {
+            const overlay = document.getElementById('modalOverlay');
+            if (overlay) overlay.style.display = 'none';
         }
 
 

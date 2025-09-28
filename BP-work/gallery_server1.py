@@ -132,13 +132,21 @@ def generate_art():
 
         palette_json = output_path + '.palette.json'  # sidecar
 
+        # Allow optional silhouette selection from client
+        data = request.get_json(silent=True) or {}
+        silhouette_arg = None
+        if isinstance(data, dict):
+            sil = data.get('silhouette')
+            if sil:
+                sil_basename = os.path.basename(sil)
+                sil_path = os.path.join(SCRIPT_DIR, 'silhouettes', sil_basename)
+                if os.path.exists(sil_path):
+                    silhouette_arg = sil_path
+
         python_exe = sys.executable
-        cmd = [
-            python_exe, MARBLE_SCRIPT,
-            '--output', output_path,
-            '--palette-out', palette_json,
-            '--no-preview'
-        ]
+        cmd = [python_exe, MARBLE_SCRIPT, '--output', output_path, '--palette-out', palette_json, '--no-preview']
+        if silhouette_arg:
+            cmd += ['--input', silhouette_arg]
 
         env = os.environ.copy()
         env['PYTHONIOENCODING'] = 'utf-8'
@@ -154,7 +162,7 @@ def generate_art():
                 palette = json.load(f)
 
         details = {
-            'silhouette': 'Unknown',
+            'silhouette': os.path.basename(silhouette_arg) if silhouette_arg else 'Unknown',
             'colors': palette.get('colors', []),   # send exact hexes here now
             'weights': palette.get('weights', []),
             'seed': 3,
@@ -179,6 +187,25 @@ def generate_art():
 @app.route('/art/<filename>')
 def serve_art(filename):
     return send_from_directory(OUTPUT_DIR, filename)
+
+
+@app.route('/silhouette/<path:filename>')
+def serve_silhouette(filename):
+    silhouettes_dir = os.path.join(SCRIPT_DIR, 'silhouettes')
+    return send_from_directory(silhouettes_dir, filename)
+
+
+@app.route('/silhouettes-list')
+def silhouettes_list():
+    silhouettes_dir = os.path.join(SCRIPT_DIR, 'silhouettes')
+    items = []
+    try:
+        if os.path.exists(silhouettes_dir):
+            files = [f for f in os.listdir(silhouettes_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+            items = [{'filename': f, 'imagePath': f'/silhouette/{f}'} for f in sorted(files)]
+    except Exception as e:
+        print(f"Error listing silhouettes: {e}")
+    return jsonify({'items': items})
 
 @app.route('/send-email', methods=['POST'])
 def send_email():
