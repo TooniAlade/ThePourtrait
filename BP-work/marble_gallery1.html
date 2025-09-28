@@ -809,14 +809,21 @@
                 currentArtInfo = null;
                 artContainer.innerHTML = `
                     <div class="art-placeholder">
-                        Canvas cleared. Arduino colors captured. Generate new art to use the new palette.
+                        Canvas cleared. Arduino colors captured — generating new art now...
                     </div>
                 `;
                 artInfo.style.display = 'none';
                 document.getElementById('sendBtn').disabled = true;
                 document.getElementById('downloadBtn').disabled = true;
                 const got = (payload && payload.colors && payload.colors.length) ? payload.colors.length : 0;
-                resetStatus.innerHTML = `<div class="status-message status-success">✅ Captured ${got} colors from Arduino and updated palette. Click "Generate New Marble Art" to render.</div>`;
+                resetStatus.innerHTML = `<div class="status-message status-success">✅ Captured ${got} colors from Arduino and updated palette. Generating...</div>`;
+
+                // Auto-generate a new piece using the freshly captured palette
+                try {
+                    await generateArt();
+                } catch (genErr) {
+                    console.error('Auto-generate after reset failed:', genErr);
+                }
             } catch (e) {
                 console.error('Reset error:', e);
                 resetStatus.innerHTML = `<div class="status-message status-error">❌ ${e.message || 'Failed to reset from Arduino.'}</div>`;
