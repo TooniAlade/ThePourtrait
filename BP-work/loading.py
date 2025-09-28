@@ -9,7 +9,7 @@ import numpy as np
 from PIL import Image
 import pygame
 from noise import pnoise2
-import cv2  # for polygon rasterization
+import cv2 
 
 
 WIDTH, HEIGHT = 800, 600

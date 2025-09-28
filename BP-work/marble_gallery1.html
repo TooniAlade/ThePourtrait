@@ -335,200 +335,200 @@
 
     <script>
         let currentArtPath = null;
-let currentArtInfo = null;
+        let currentArtInfo = null;
 
-async function generateArt() {
-  const generateBtn = document.getElementById('generateBtn');
-  const generateStatus = document.getElementById('generateStatus');
-  const sendBtn = document.getElementById('sendBtn');
-  const downloadBtn = document.getElementById('downloadBtn');
+        async function generateArt() {
+        const generateBtn = document.getElementById('generateBtn');
+        const generateStatus = document.getElementById('generateStatus');
+        const sendBtn = document.getElementById('sendBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
 
-  generateBtn.disabled = true;
-  generateBtn.innerHTML = '<span class="loading"></span>Generating Art...';
-  generateStatus.innerHTML = '<div class="status-message status-info">🎨 Creating your unique marble art...</div>';
+        generateBtn.disabled = true;
+        generateBtn.innerHTML = '<span class="loading"></span>Generating Art...';
+        generateStatus.innerHTML = '<div class="status-message status-info">🎨 Creating your unique marble art...</div>';
 
-  try {
-    const response = await fetch('/generate-art', { method: 'POST', headers: { 'Content-Type': 'application/json' }});
-    if (!response.ok) throw new Error('Failed to generate art');
-    const result = await response.json();
+        try {
+            const response = await fetch('/generate-art', { method: 'POST', headers: { 'Content-Type': 'application/json' }});
+            if (!response.ok) throw new Error('Failed to generate art');
+            const result = await response.json();
 
-    displayArt(result.imagePath, result.details, result.palette, result.weights);
+            displayArt(result.imagePath, result.details, result.palette, result.weights);
 
-    sendBtn.disabled = false;
-    downloadBtn.disabled = false;
-    generateStatus.innerHTML = '<div class="status-message status-success">✅ Art generated successfully!</div>';
-  } catch (e) {
-    console.error(e);
-    generateStatus.innerHTML = '<div class="status-message status-error">❌ Failed to generate art. Please try again.</div>';
-  } finally {
-    generateBtn.disabled = false;
-    generateBtn.innerHTML = '✨ Generate New Marble Art';
-  }
-}
+            sendBtn.disabled = false;
+            downloadBtn.disabled = false;
+            generateStatus.innerHTML = '<div class="status-message status-success">✅ Art generated successfully!</div>';
+        } catch (e) {
+            console.error(e);
+            generateStatus.innerHTML = '<div class="status-message status-error">❌ Failed to generate art. Please try again.</div>';
+        } finally {
+            generateBtn.disabled = false;
+            generateBtn.innerHTML = '✨ Generate New Marble Art';
+        }
+        }
 
-function hexToRgb(hex){
-  const h = hex.replace('#','');
-  const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16);
-  return [r,g,b];
-}
+        function hexToRgb(hex){
+        const h = hex.replace('#','');
+        const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16);
+        return [r,g,b];
+        }
 
-function displayArt(imagePath, details, paletteHex = [], weights = []) {
-  const artContainer = document.getElementById('artContainer');
-  const artInfo = document.getElementById('artInfo');
-  const artDetails = document.getElementById('artDetails');
+        function displayArt(imagePath, details, paletteHex = [], weights = []) {
+        const artContainer = document.getElementById('artContainer');
+        const artInfo = document.getElementById('artInfo');
+        const artDetails = document.getElementById('artDetails');
 
-  currentArtPath = imagePath;
-  currentArtInfo = details;
-
-
-  artContainer.innerHTML = '';
-  artContainer.style.position = 'relative';
-
-  // final image element (hidden at the start)
-  const img = new Image();
-  img.src = imagePath;
-  img.alt = "Generated Marble Art";
-  img.decoding = "sync";
-  img.loading = "eager";
-  img.style.display = 'none';
-  artContainer.appendChild(img);
-
-  const base = document.createElement('canvas');
-  const overlay = document.createElement('canvas');
-  base.style.position = overlay.style.position = 'absolute';
-  base.style.top = overlay.style.top = '0';
-  base.style.left = overlay.style.left = '0';
-  base.style.width = overlay.style.width = '100%';
-  base.style.height = overlay.style.height = '100%';
-  base.style.borderRadius = overlay.style.borderRadius = '15px';
-  overlay.style.zIndex = '10';
-  overlay.style.pointerEvents = 'none';
-
-  artContainer.appendChild(base);
-  artContainer.appendChild(overlay);
-
-  const bctx = base.getContext('2d');
-  const octx = overlay.getContext('2d');
-
-  const PALETTE = (paletteHex && paletteHex.length ? paletteHex : (details.colors||[])).map(hexToRgb);
-  const FALLBACK = [[230,70,70],[60,120,230],[60,200,120],[255,140,0],[148,0,211],[255,20,147]];
-  const palette = PALETTE.length ? PALETTE : FALLBACK;
-
-  let phase = 1, spiralTimer = 0, frame = 0;
-  let paintBlobs = [], revealBlobs = [];
-  let rafId = null;
-  function noise(x,y,base=0){ return Math.sin(x*0.7+base*0.01)*Math.cos(y*0.7+base*0.01)*0.5; }
-  function pickColor(white=false){ return white ? [255,255,255] : palette[Math.floor(Math.random()*palette.length)]; }
-  function addBlob(color,isReveal=false){
-    const W = overlay.width, H = overlay.height;
-    const blob = {
-      x: isReveal ? 100 + Math.random()*(W-200) : W/2 + (Math.random()-0.5)*120,
-      y: isReveal ? 100 + Math.random()*(H-200) : H/2 + (Math.random()-0.5)*120,
-      r: 5,
-      maxR: isReveal ? 70 + Math.random()*130 : 90 + Math.random()*250,
-      growth: isReveal ? 2.5 + Math.random() * 1.5 : 6 + Math.random() * 3,
-      spikiness: isReveal ? 40 + Math.random() * 20 : 35 + Math.random() * 20,
-      jitter: isReveal ? 20 + Math.random() * 2 : 20 + Math.random() * 3,
-      color, life: 0
-    };
-    (isReveal ? revealBlobs : paintBlobs).push(blob);
-  }
-  function drawBlob(ctx, blob, erase=false){
-    ctx.save();
-    const pts=[];
-    for(let a=0; a<360; a+=blob.jitter){
-      const rad=a*Math.PI/180;
-      const n=noise(Math.cos(rad)*0.7+blob.life*0.01, Math.sin(rad)*0.7+blob.life*0.01, blob.life*0.2);
-      const nr=blob.r+n*blob.spikiness;
-      pts.push({x:blob.x+Math.cos(rad)*nr, y:blob.y+Math.sin(rad)*nr});
-    }
-    if (erase){ ctx.globalCompositeOperation='destination-out'; ctx.fillStyle='white'; }
-    else { ctx.globalCompositeOperation='source-over'; ctx.fillStyle=`rgb(${blob.color[0]},${blob.color[1]},${blob.color[2]})`; }
-    ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
-    for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x, pts[i].y);
-    ctx.closePath(); ctx.fill(); ctx.restore();
-  }
-  function updatePaintBlobs(){
-    for(const b of paintBlobs){ if(b.r<b.maxR) b.r+=b.growth; b.life++; drawBlob(octx, b, false); }
-  }
-  function applySpiralWave(ctx, t){
-    const W=overlay.width, H=overlay.height;
-    const img=ctx.getImageData(0,0,W,H);
-    const out=ctx.createImageData(W,H);
-    const d=img.data, nd=out.data;
-    for(let y=0;y<H;y++){
-      const off = Math.floor(40 * Math.sin((y/60)+t));
-      for(let x=0;x<W;x++){
-        let sx=x-off; while(sx<0) sx+=W; while(sx>=W) sx-=W;
-        const si=(y*W+sx)*4, ti=(y*W+x)*4;
-        nd[ti]=d[si]; nd[ti+1]=d[si+1]; nd[ti+2]=d[si+2]; nd[ti+3]=d[si+3];
-      }
-    }
-    ctx.putImageData(out,0,0);
-  }
-
-  function animate(){
-    // phase 1: pour paint (overlay only)
-    if (phase===1){
-      octx.clearRect(0,0,overlay.width, overlay.height);
-      if(frame%2===0) addBlob(pickColor(false));
-      updatePaintBlobs();
-      if(frame>90) phase=2;
-    }
-    // phase 2: spiral warp the paint (overlay only)
-    else if (phase===2){
-      if(frame%2===0) addBlob(pickColor(true));
-      updatePaintBlobs();
-      spiralTimer += 0.15;
-      applySpiralWave(octx, spiralTimer);
-      if(spiralTimer>2) phase=3;
-    }
-    // phase 3: keep carving holes in overlay to reveal final image
-    else if (phase===3){
-      const WHITE_PAINT_EVERY = 20;
-      if (frame % WHITE_PAINT_EVERY === 0 && revealBlobs.length < 40) addBlob([255,255,255], true);
-      for (const rb of revealBlobs){ if(rb.r<rb.maxR) rb.r+=rb.growth; rb.life++; }
-
-      // erase holes from overlay 
-      for (const rb of revealBlobs) drawBlob(octx, rb, true);
-      if (revealBlobs.length > 40 || frame > 300) phase = 4;
-    }
-    // phase 4: gracefully fade overlay and stop
-    else if (phase===4){
-      overlay.style.transition = 'opacity 0.6s ease';
-      overlay.style.opacity = '0';
-      setTimeout(()=>{ overlay.remove(); }, 650);
-      return;
-    }
-    frame++; rafId = requestAnimationFrame(animate);
-  }
-
-  img.onload = function(){
-    base.width = overlay.width  = img.naturalWidth;
-    base.height= overlay.height = img.naturalHeight;
-
-    artContainer.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
+        currentArtPath = imagePath;
+        currentArtInfo = details;
 
 
-    bctx.imageSmoothingEnabled = true;
-    bctx.clearRect(0,0,base.width,base.height);
-    bctx.drawImage(img, 0, 0, base.width, base.height);
+        artContainer.innerHTML = '';
+        artContainer.style.position = 'relative';
+
+        // final image element (hidden at the start)
+        const img = new Image();
+        img.src = imagePath;
+        img.alt = "Generated Marble Art";
+        img.decoding = "sync";
+        img.loading = "eager";
+        img.style.display = 'none';
+        artContainer.appendChild(img);
+
+        const base = document.createElement('canvas');
+        const overlay = document.createElement('canvas');
+        base.style.position = overlay.style.position = 'absolute';
+        base.style.top = overlay.style.top = '0';
+        base.style.left = overlay.style.left = '0';
+        base.style.width = overlay.style.width = '100%';
+        base.style.height = overlay.style.height = '100%';
+        base.style.borderRadius = overlay.style.borderRadius = '15px';
+        overlay.style.zIndex = '10';
+        overlay.style.pointerEvents = 'none';
+
+        artContainer.appendChild(base);
+        artContainer.appendChild(overlay);
+
+        const bctx = base.getContext('2d');
+        const octx = overlay.getContext('2d');
+
+        const PALETTE = (paletteHex && paletteHex.length ? paletteHex : (details.colors||[])).map(hexToRgb);
+        const FALLBACK = [[230,70,70],[60,120,230],[60,200,120],[255,140,0],[148,0,211],[255,20,147]];
+        const palette = PALETTE.length ? PALETTE : FALLBACK;
+
+        let phase = 1, spiralTimer = 0, frame = 0;
+        let paintBlobs = [], revealBlobs = [];
+        let rafId = null;
+        function noise(x,y,base=0){ return Math.sin(x*0.7+base*0.01)*Math.cos(y*0.7+base*0.01)*0.5; }
+        function pickColor(white=false){ return white ? [255,255,255] : palette[Math.floor(Math.random()*palette.length)]; }
+        function addBlob(color,isReveal=false){
+            const W = overlay.width, H = overlay.height;
+            const blob = {
+            x: isReveal ? 100 + Math.random()*(W-200) : W/2 + (Math.random()-0.5)*120,
+            y: isReveal ? 100 + Math.random()*(H-200) : H/2 + (Math.random()-0.5)*120,
+            r: 5,
+            maxR: isReveal ? 70 + Math.random()*130 : 90 + Math.random()*250,
+            growth: isReveal ? 2.5 + Math.random() * 1.5 : 6 + Math.random() * 3,
+            spikiness: isReveal ? 40 + Math.random() * 20 : 35 + Math.random() * 20,
+            jitter: isReveal ? 20 + Math.random() * 2 : 20 + Math.random() * 3,
+            color, life: 0
+            };
+            (isReveal ? revealBlobs : paintBlobs).push(blob);
+        }
+        function drawBlob(ctx, blob, erase=false){
+            ctx.save();
+            const pts=[];
+            for(let a=0; a<360; a+=blob.jitter){
+            const rad=a*Math.PI/180;
+            const n=noise(Math.cos(rad)*0.7+blob.life*0.01, Math.sin(rad)*0.7+blob.life*0.01, blob.life*0.2);
+            const nr=blob.r+n*blob.spikiness;
+            pts.push({x:blob.x+Math.cos(rad)*nr, y:blob.y+Math.sin(rad)*nr});
+            }
+            if (erase){ ctx.globalCompositeOperation='destination-out'; ctx.fillStyle='white'; }
+            else { ctx.globalCompositeOperation='source-over'; ctx.fillStyle=`rgb(${blob.color[0]},${blob.color[1]},${blob.color[2]})`; }
+            ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+            for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x, pts[i].y);
+            ctx.closePath(); ctx.fill(); ctx.restore();
+        }
+        function updatePaintBlobs(){
+            for(const b of paintBlobs){ if(b.r<b.maxR) b.r+=b.growth; b.life++; drawBlob(octx, b, false); }
+        }
+        function applySpiralWave(ctx, t){
+            const W=overlay.width, H=overlay.height;
+            const img=ctx.getImageData(0,0,W,H);
+            const out=ctx.createImageData(W,H);
+            const d=img.data, nd=out.data;
+            for(let y=0;y<H;y++){
+            const off = Math.floor(40 * Math.sin((y/60)+t));
+            for(let x=0;x<W;x++){
+                let sx=x-off; while(sx<0) sx+=W; while(sx>=W) sx-=W;
+                const si=(y*W+sx)*4, ti=(y*W+x)*4;
+                nd[ti]=d[si]; nd[ti+1]=d[si+1]; nd[ti+2]=d[si+2]; nd[ti+3]=d[si+3];
+            }
+            }
+            ctx.putImageData(out,0,0);
+        }
+
+        function animate(){
+            // phase 1: pour paint (overlay only)
+            if (phase===1){
+            octx.clearRect(0,0,overlay.width, overlay.height);
+            if(frame%2===0) addBlob(pickColor(false));
+            updatePaintBlobs();
+            if(frame>90) phase=2;
+            }
+            // phase 2: spiral warp the paint (overlay only)
+            else if (phase===2){
+            if(frame%2===0) addBlob(pickColor(true));
+            updatePaintBlobs();
+            spiralTimer += 0.15;
+            applySpiralWave(octx, spiralTimer);
+            if(spiralTimer>2) phase=3;
+            }
+            // phase 3: keep carving holes in overlay to reveal final image
+            else if (phase===3){
+            const WHITE_PAINT_EVERY = 20;
+            if (frame % WHITE_PAINT_EVERY === 0 && revealBlobs.length < 40) addBlob([255,255,255], true);
+            for (const rb of revealBlobs){ if(rb.r<rb.maxR) rb.r+=rb.growth; rb.life++; }
+
+            // erase holes from overlay 
+            for (const rb of revealBlobs) drawBlob(octx, rb, true);
+            if (revealBlobs.length > 40 || frame > 300) phase = 4;
+            }
+            // phase 4: gracefully fade overlay and stop
+            else if (phase===4){
+            overlay.style.transition = 'opacity 0.6s ease';
+            overlay.style.opacity = '0';
+            setTimeout(()=>{ overlay.remove(); }, 650);
+            return;
+            }
+            frame++; rafId = requestAnimationFrame(animate);
+        }
+
+        img.onload = function(){
+            base.width = overlay.width  = img.naturalWidth;
+            base.height= overlay.height = img.naturalHeight;
+
+            artContainer.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
 
 
-    animate();
-  };
+            bctx.imageSmoothingEnabled = true;
+            bctx.clearRect(0,0,base.width,base.height);
+            bctx.drawImage(img, 0, 0, base.width, base.height);
 
 
-  artDetails.innerHTML = `
-    <strong>Silhouette:</strong> ${details.silhouette || 'Custom'}<br>
-    <strong>Colors:</strong> ${(details.colors || paletteHex || []).join(', ')}<br>
-    <strong>Seed:</strong> ${details.seed ?? 'N/A'}<br>
-    <strong>Generated:</strong> ${new Date().toLocaleString()}
-  `;
-  artInfo.style.display = 'block';
-  document.getElementById('sendBtn').disabled = false;
-  document.getElementById('downloadBtn').disabled = false;
-}
+            animate();
+        };
+
+
+        artDetails.innerHTML = `
+            <strong>Silhouette:</strong> ${details.silhouette || 'Custom'}<br>
+            <strong>Colors:</strong> ${(details.colors || paletteHex || []).join(', ')}<br>
+            <strong>Seed:</strong> ${details.seed ?? 'N/A'}<br>
+            <strong>Generated:</strong> ${new Date().toLocaleString()}
+        `;
+        artInfo.style.display = 'block';
+        document.getElementById('sendBtn').disabled = false;
+        document.getElementById('downloadBtn').disabled = false;
+        }
 
         async function sendEmail(event) {
             event.preventDefault();
