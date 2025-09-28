@@ -78,15 +78,25 @@ def parse_colors(colors_path: str) -> Tuple[List[Tuple[float, float, float]], Li
     # Standard 6-color percentage breakdown
     standard_percentages = [25, 20, 20, 15, 10, 10]
 
-    if not colors_path or not os.path.exists(colors_path):
-        return fallback_colors[:6], [w/100.0 for w in standard_percentages]
-
     try:
         with open(colors_path, "r", encoding="utf-8") as f:
             data = json.load(f)
     except Exception:
         return fallback_colors[:6], [w/100.0 for w in standard_percentages]
 
+    def hex_to_rgb01(h: str):
+        h = h.strip()
+        if h.startswith("#"):
+            h = h[1:]
+        if len(h) == 3:  # #RGB
+            r = int(h[0]*2, 16)
+            g = int(h[1]*2, 16)
+            b = int(h[2]*2, 16)
+        else:
+            r = int(h[0:2], 16)
+            g = int(h[2:4], 16)
+            b = int(h[4:6], 16)
+        return (r/255.0, g/255.0, b/255.0)
     # Parse all available colors from the JSON
     all_colors = []
     
