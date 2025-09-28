@@ -641,7 +641,7 @@
                 const resp = await fetch('/arduino-reset', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ colorTimeout: 20 })
+                    body: JSON.stringify({ colorTimeout: 40 })
                 });
                 const payload = await resp.json().catch(() => ({}));
                 if (!resp.ok || payload.success === false) {

@@ -42,8 +42,8 @@ if exist "%PROJECT_ROOT%\.venv\Scripts\python.exe" (
 )
 
 REM Start the server
-echo Starting server...
+echo Starting server (gallery_server1.py)...
 echo.
-%PYTHON_EXE% gallery_server.py
+%PYTHON_EXE% gallery_server1.py
 
 pause

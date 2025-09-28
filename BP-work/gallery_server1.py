@@ -201,39 +201,34 @@ def send_email():
             return jsonify({'error': 'Art file not found'}), 404
         
         # Send email
-        success = send_art_email(name, email, full_art_path, art_info)
-        
+        success, err = send_art_email(name, email, full_art_path, art_info)
+
         if success:
             return jsonify({'success': True, 'message': 'Email sent successfully!'})
         else:
-            return jsonify({'error': 'Failed to send email'}), 500
+            return jsonify({'error': err or 'Failed to send email'}), 500
             
     except Exception as e:
         print(f"Error in send_email: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 def send_art_email(name, email, art_path, art_info):
-    """Send email with the marble art attachment"""
+    """Send email with the marble art attachment.
+    Returns (success: bool, error_message: Optional[str])
+    """
     try:
-        # Always try to send real email first
+        # Require email credentials to be present
         if not EMAIL_USER or not EMAIL_PASS:
-            print(f"📧 Email credentials not configured - saving request for later")
-            user_request = {
-                'name': name,
-                'email': email,
-                'art_path': art_path,
-                'timestamp': datetime.datetime.now().isoformat(),
-                'art_info': art_info
-            }
-            print(f"User request logged: {user_request}")
-            return True
-        
+            msg = "EMAIL_USER or EMAIL_PASS missing - cannot send email."
+            print(f"❌ {msg}")
+            return False, msg
+
         # Create message
         msg = MIMEMultipart()
         msg['From'] = EMAIL_USER
         msg['To'] = email
         msg['Subject'] = f"🎨 Your Beautiful Marble Art - ThePourtrait"
-        
+
         # Create HTML body
         colors_list = ', '.join(art_info.get('colors', []))
         html_body = f"""
@@ -274,54 +269,69 @@ def send_art_email(name, email, art_path, art_info):
         </body>
         </html>
         """
-        
+
         msg.attach(MIMEText(html_body, 'html'))
-        
+
         # Attach the image
         with open(art_path, 'rb') as f:
             img_data = f.read()
             img = MIMEImage(img_data)
             img.add_header('Content-Disposition', 'attachment', filename=f'marble_art_{name.replace(" ", "_")}.png')
             msg.attach(img)
-        
+
         # Send email
         print(f"🔐 Attempting to send email using: {EMAIL_USER}")
         print(f"📧 Recipient: {email}")
         print(f"🔑 App password length: {len(EMAIL_PASS)} characters")
-        
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-        server.starttls()
-        
+
+        server = None
+        # Try STARTTLS on 587 first
         try:
-            print("🔐 Attempting Gmail login...")
+            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=30)
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            print("🔐 Attempting Gmail login (STARTTLS 587)...")
             server.login(EMAIL_USER, EMAIL_PASS)
-            print("✅ Gmail login successful!")
             server.send_message(msg)
-            server.quit()
-            print(f"✅ Email sent successfully to {email}")
-            return True
-        except smtplib.SMTPAuthenticationError as e:
-            server.quit()
-            print(f"❌ Gmail authentication failed!")
-            print(f"   Error: {str(e)}")
-            print(f"   📋 User request saved for manual processing:")
-            print(f"   Name: {name}, Email: {email}")
-            print(f"   Art file: {art_path}")
-            # Save failed request for manual processing
-            with open('failed_email_requests.txt', 'a', encoding='utf-8') as f:
-                f.write(f"{datetime.datetime.now()}: {name} <{email}> - {art_path}\n")
-            return True  # Return True so user gets success message
-        except Exception as e:
-            server.quit()
-            print(f"❌ Email sending failed: {str(e)}")
-            # Save failed request for manual processing
-            with open('failed_email_requests.txt', 'a', encoding='utf-8') as f:
-                f.write(f"{datetime.datetime.now()}: {name} <{email}> - {art_path} (Error: {str(e)})\n")
-            return True  # Return True so user gets success message
-        
+            print(f"✅ Email sent successfully to {email} (STARTTLS 587)")
+            return True, None
+        except Exception as e1:
+            # Close if partially opened
+            try:
+                if server:
+                    server.quit()
+            except Exception:
+                pass
+            print(f"⚠️ STARTTLS (587) failed: {e1}. Trying SMTPS (465)...")
+            # Fallback to SSL on 465
+            try:
+                server = smtplib.SMTP_SSL(SMTP_SERVER, 465, timeout=30)
+                server.ehlo()
+                print("🔐 Attempting Gmail login (SSL 465)...")
+                server.login(EMAIL_USER, EMAIL_PASS)
+                server.send_message(msg)
+                print(f"✅ Email sent successfully to {email} (SSL 465)")
+                return True, None
+            except smtplib.SMTPAuthenticationError as e2:
+                msg = f"Gmail authentication failed: {str(e2)}"
+                print(f"❌ {msg}")
+                return False, msg
+            except Exception as e2:
+                msg = f"Email sending failed over SSL 465: {str(e2)}"
+                print(f"❌ {msg}")
+                return False, msg
+            finally:
+                try:
+                    if server:
+                        server.quit()
+                except Exception:
+                    pass
+
     except Exception as e:
-        print(f"Error sending email: {str(e)}")
-        return False
+        msg = f"Error sending email: {str(e)}"
+        print(f"❌ {msg}")
+        return False, msg
 
 @app.route('/download/<filename>')
 def download_art(filename):
