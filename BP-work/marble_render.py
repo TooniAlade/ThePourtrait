@@ -34,10 +34,7 @@ def get_random_silhouette():
     selected_file = random.choice(silhouette_files)
     selected_path = os.path.join(silhouettes_dir, selected_file)
     
-    try:
-        print(f"🎲 Randomly selected silhouette: {selected_file}")
-    except UnicodeEncodeError:
-        print(f"[DICE] Randomly selected silhouette: {selected_file}")
+    print(f"🎲 Randomly selected silhouette: {selected_file}")
     return selected_path
 
 DEFAULT_INPUT = get_random_silhouette()
@@ -60,7 +57,7 @@ def parse_colors(colors_path: str) -> Tuple[List[Tuple[float, float, float]], Li
     fallback_weights = [0.25, 0.20, 0.20, 0.15, 0.10, 0.10]
     
     # Standard 6-color percentage breakdown
-    standard_percentages = [25, 20, 20, 15, 10, 10]
+    standard_percentages = [17, 17, 17, 17, 17, 15]
 
     if not colors_path or not os.path.exists(colors_path):
         return fallback_colors[:6], [w/100.0 for w in standard_percentages]
@@ -105,9 +102,10 @@ def parse_colors(colors_path: str) -> Tuple[List[Tuple[float, float, float]], Li
     except Exception:
         return fallback_colors[:6], [w/100.0 for w in standard_percentages]
 
-    # If we have colors, randomly select 6 and apply standard percentages
+    # If we have colors, pick 6 and apply standard percentages
     if all_colors and len(all_colors) >= 6:
-        selected_colors = random.sample(all_colors, 6)
+        # If exactly 6, preserve the provided order; otherwise, randomly choose 6
+        selected_colors = all_colors if len(all_colors) == 6 else random.sample(all_colors, 6)
         selected_weights = [w/100.0 for w in standard_percentages]
         
         # Show which colors were selected
@@ -117,12 +115,8 @@ def parse_colors(colors_path: str) -> Tuple[List[Tuple[float, float, float]], Li
                 int(color[0] * 255), int(color[1] * 255), int(color[2] * 255)
             )
             color_names.append(hex_color)
-        try:
-            print(f"🎨 Selected colors: {', '.join(color_names)}")
-            print(f"📊 Percentages: {standard_percentages}")
-        except UnicodeEncodeError:
-            print(f"[ART] Selected colors: {', '.join(color_names)}")
-            print(f"[CHART] Percentages: {standard_percentages}")
+        print(f"🎨 Selected colors: {', '.join(color_names)}")
+        print(f"📊 Percentages: {standard_percentages}")
         
         return selected_colors, selected_weights
     elif all_colors:
@@ -382,6 +376,10 @@ def main():
     p.add_argument("--comb-amp", type=float, default=0.06, help="Comb (rake) warp amplitude (0..0.2)")
     p.add_argument("--comb-freq", type=float, default=9.0, help="Comb (rake) warp frequency (bands along vertical)")
     p.add_argument("--flow-steps", type=int, default=2, help="Iterative flow steps to elongate streaks (0..4)")
+    # Utility: generate an all-black PNG wallpaper and exit
+    p.add_argument("--black-wallpaper", action="store_true", help="Generate a solid black PNG (wallpaper) and exit")
+    p.add_argument("--wallpaper-width", type=int, default=None, help="Width for black wallpaper (defaults to input image width or 1920)")
+    p.add_argument("--wallpaper-height", type=int, default=None, help="Height for black wallpaper (defaults to input image height or 1080)")
     # Reveal animation options - PREVIEW IS NOW ON BY DEFAULT
     p.add_argument("--no-preview", action="store_true", help="Disable the live center-out reveal animation")
     p.add_argument("--seconds", type=float, default=6.0, help="Duration of the reveal animation")
@@ -398,22 +396,42 @@ def main():
             silhouette_files = [f for f in os.listdir(silhouettes_dir) 
                                if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
             if silhouette_files:
-                try:
-                    print("🎨 Available silhouettes:")
-                except UnicodeEncodeError:
-                    print("[ART] Available silhouettes:")
+                print("🎨 Available silhouettes:")
                 for i, filename in enumerate(sorted(silhouette_files), 1):
                     print(f"  {i}. {filename}")
             else:
-                try:
-                    print("❌ No silhouettes found in silhouettes/ folder")
-                except UnicodeEncodeError:
-                    print("[X] No silhouettes found in silhouettes/ folder")
+                print("❌ No silhouettes found in silhouettes/ folder")
         else:
+            print("❌ silhouettes/ folder not found")
+        return
+
+    # Fast path: solid black wallpaper
+    if getattr(args, "black_wallpaper", False):
+        # Determine size order of precedence: explicit width/height > input image size > default 1920x1080
+        W = args.wallpaper_width
+        H = args.wallpaper_height
+        if W is None or H is None:
             try:
-                print("❌ silhouettes/ folder not found")
-            except UnicodeEncodeError:
-                print("[X] silhouettes/ folder not found")
+                if args.input and os.path.exists(args.input):
+                    with Image.open(args.input) as _im:
+                        iw, ih = _im.size
+                        W = W or iw
+                        H = H or ih
+            except Exception:
+                pass
+        if W is None: W = 1920
+        if H is None: H = 1080
+        W = max(1, int(W))
+        H = max(1, int(H))
+
+        # Pick default output name if user didn't change it
+        out_path = args.output
+        default_black = os.path.join(os.path.dirname(__file__), "black_wallpaper.png")
+        if out_path == DEFAULT_OUTPUT:
+            out_path = default_black
+
+        Image.new("RGB", (W, H), (0, 0, 0)).save(out_path)
+        print(f"Saved black wallpaper: {out_path} ({W}x{H})")
         return
 
     # Use random silhouette if --random flag is used
