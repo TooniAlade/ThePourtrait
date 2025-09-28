@@ -3,9 +3,10 @@ import json
 import os
 import sys
 import time
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 import serial
+import serial.tools.list_ports as list_ports
 from PIL import Image
 
 # This script listens to an Arduino over serial for six color selections,
@@ -25,15 +26,45 @@ def int_to_rgb_tuple(n: int) -> Tuple[int, int, int]:
     return (r, g, b)
 
 
-def read_six_colors(port: str, baud: int = 115200, timeout: float = 10.0) -> List[Tuple[int, int, int]]:
-    ser = serial.Serial(port, baudrate=baud, timeout=timeout)
+def detect_port(preferred: Optional[str] = None) -> Optional[str]:
+    """Return a likely Arduino COM port. If preferred is provided, return it if present."""
+    ports = list(list_ports.comports())
+    if preferred:
+        for p in ports:
+            if p.device.lower() == preferred.lower():
+                return p.device
+    # Heuristics: common USB serial descriptions/vendors
+    candidates = []
+    for p in ports:
+        desc = (p.description or "").lower()
+        manu = (p.manufacturer or "").lower()
+        if any(k in desc for k in ["arduino", "silicon labs", "usb serial", "ch340", "wch", "cp210x", "adafruit", "seeed"]):
+            candidates.append(p.device)
+        elif any(k in manu for k in ["arduino", "adafruit", "wch", "silicon labs", "seeed"]):
+            candidates.append(p.device)
+    if len(candidates) == 1:
+        return candidates[0]
+    # Fallback: if only one port total, use it
+    if len(ports) == 1:
+        return ports[0].device
+    return None
+
+
+def list_available_ports() -> List[Tuple[str, str]]:
+    return [(p.device, p.description or "") for p in list_ports.comports()]
+
+
+def read_six_colors(port: str, baud: int = 115200, timeout: float = 120.0) -> List[Tuple[int, int, int]]:
+    print(f"Opening serial port {port} @ {baud}...")
+    ser = serial.Serial(port, baudrate=baud, timeout=1.0)
     try:
         colors: List[Tuple[int, int, int]] = []
-        start = time.time()
+        last_activity = time.time()
+        print("Waiting for six color lines from Arduino (decimal like 16711680 or hex like 0xFF0000)...")
         while len(colors) < 6:
             line = ser.readline().decode(errors="ignore").strip()
             if not line:
-                if time.time() - start > timeout:
+                if time.time() - last_activity > timeout:
                     raise TimeoutError("Timed out waiting for color lines from Arduino")
                 continue
             # Accept either hex (0xRRGGBB) or decimal
@@ -47,6 +78,7 @@ def read_six_colors(port: str, baud: int = 115200, timeout: float = 10.0) -> Lis
                 continue
             colors.append(int_to_rgb_tuple(val))
             print(f"Got color {len(colors)}: #{val:06X}")
+            last_activity = time.time()
         return colors
     finally:
         ser.close()
@@ -62,15 +94,31 @@ def write_colors_json(colors: List[Tuple[int, int, int]], path: str = DEFAULT_CO
 
 def main():
     p = argparse.ArgumentParser(description="Read 6 colors from Arduino and run marbler")
-    p.add_argument("--port", required=True, help="Serial port (e.g., COM3 on Windows)")
+    p.add_argument("--port", default=None, help="Serial port (e.g., COM3 on Windows). If omitted, auto-detect.")
     p.add_argument("--baud", type=int, default=115200, help="Baud rate")
+    p.add_argument("--list-ports", action="store_true", help="List available serial ports and exit")
     p.add_argument("--colors-json", default=DEFAULT_COLORS_JSON, help="Path to write colors.json")
     p.add_argument("--run", action="store_true", help="Run marble_render.py after writing colors.json")
     p.add_argument("--input", default=None, help="Silhouette image path (if running marbler)")
     p.add_argument("--output", default=DEFAULT_OUTPUT, help="Output PNG path (if running marbler)")
     args = p.parse_args()
 
-    colors = read_six_colors(args.port, baud=args.baud)
+    if args.list_ports:
+        ports = list_available_ports()
+        if not ports:
+            print("No serial ports found.")
+        else:
+            print("Available serial ports:")
+            for dev, desc in ports:
+                print(f"  {dev}: {desc}")
+        return
+
+    port = args.port or detect_port()
+    if not port:
+        print("Could not auto-detect a serial port. Use --list-ports to see options and pass --port COMx.")
+        return
+
+    colors = read_six_colors(port, baud=args.baud)
     write_colors_json(colors, args.colors_json)
 
     if args.run:
