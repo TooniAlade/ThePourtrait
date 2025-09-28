@@ -414,7 +414,6 @@ function displayArt(imagePath, details, paletteHex = [], weights = []) {
   const FALLBACK = [[230,70,70],[60,120,230],[60,200,120],[255,140,0],[148,0,211],[255,20,147]];
   const palette = PALETTE.length ? PALETTE : FALLBACK;
 
-  // animation state 
   let phase = 1, spiralTimer = 0, frame = 0;
   let paintBlobs = [], revealBlobs = [];
   let rafId = null;
@@ -426,10 +425,10 @@ function displayArt(imagePath, details, paletteHex = [], weights = []) {
       x: isReveal ? 100 + Math.random()*(W-200) : W/2 + (Math.random()-0.5)*120,
       y: isReveal ? 100 + Math.random()*(H-200) : H/2 + (Math.random()-0.5)*120,
       r: 5,
-      maxR: isReveal ? 120 + Math.random()*130 : 250 + Math.random()*250,
-      growth: 6 + Math.random()*3,
-      spikiness: isReveal ? 30 + Math.random()*30 : 25 + Math.random()*20,
-      jitter: 3 + Math.random()*3,
+      maxR: isReveal ? 70 + Math.random()*130 : 90 + Math.random()*250,
+      growth: isReveal ? 2.5 + Math.random() * 1.5 : 6 + Math.random() * 3,
+      spikiness: isReveal ? 40 + Math.random() * 20 : 35 + Math.random() * 20,
+      jitter: isReveal ? 20 + Math.random() * 2 : 20 + Math.random() * 3,
       color, life: 0
     };
     (isReveal ? revealBlobs : paintBlobs).push(blob);
@@ -484,7 +483,7 @@ function displayArt(imagePath, details, paletteHex = [], weights = []) {
       applySpiralWave(octx, spiralTimer);
       if(spiralTimer>2) phase=3;
     }
-    // phase 3: keep carving holes in overlay to reveal base (final image)
+    // phase 3: keep carving holes in overlay to reveal final image
     else if (phase===3){
       const WHITE_PAINT_EVERY = 20;
       if (frame % WHITE_PAINT_EVERY === 0 && revealBlobs.length < 40) addBlob([255,255,255], true);
