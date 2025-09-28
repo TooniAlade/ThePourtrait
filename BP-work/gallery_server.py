@@ -19,6 +19,7 @@ CORS(app)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR = os.path.join(SCRIPT_DIR, 'generated_art')
 MARBLE_SCRIPT = os.path.join(SCRIPT_DIR, 'marble_render.py')
+ARDUINO_SCRIPT = os.path.join(SCRIPT_DIR, 'arduino_to_marble.py')
 
 # Create output directory if it doesn't exist
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -405,6 +406,75 @@ def demo_art():
         return send_from_directory(SCRIPT_DIR, 'marble_output.png')
     else:
         return jsonify({'error': 'Demo art not found'}), 404
+
+@app.route('/arduino-reset', methods=['POST'])
+def arduino_reset():
+    """Trigger Arduino color capture to update colors.json and return captured colors.
+    Also used by the UI Reset button to clear the canvas on the frontend afterwards.
+    """
+    try:
+        # Determine Python executable (prefer venv like generate-art)
+        venv_python = os.path.join(os.path.dirname(SCRIPT_DIR), '.venv', 'Scripts', 'python.exe')
+        python_exe = venv_python if os.path.exists(venv_python) else 'python'
+
+        # Optional timeout from request
+        data = request.get_json(silent=True) or {}
+        color_timeout = int(data.get('colorTimeout', 20))  # seconds
+        baud = int(data.get('baud', 115200))
+        # Allow explicit port override if provided (e.g., "COM3")
+        port = data.get('port')
+
+        # Build command to invoke Arduino bridge without running marbler
+        cmd = [python_exe, ARDUINO_SCRIPT, '--color-timeout', str(color_timeout), '--baud', str(baud)]
+        if port:
+            cmd += ['--port', str(port)]
+
+        print(f"Running Arduino capture: {' '.join(cmd)}")
+        env = os.environ.copy()
+        env['PYTHONIOENCODING'] = 'utf-8'
+
+        import subprocess
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=SCRIPT_DIR, env=env)
+
+        stdout = result.stdout or ''
+        stderr = result.stderr or ''
+        if result.returncode != 0:
+            print(f"❌ Arduino capture failed: rc={result.returncode}\nSTDERR:\n{stderr}\nSTDOUT:\n{stdout}")
+            return jsonify({'success': False, 'error': 'Failed to capture colors from Arduino', 'stderr': stderr}), 500
+
+        # Parse captured colors from stdout lines like: "Got color N: #RRGGBB"
+        colors = []
+        for line in (stdout.splitlines() if stdout else []):
+            line = line.strip()
+            if line.lower().startswith('got color') and '#' in line:
+                try:
+                    hex_part = line.split('#', 1)[1].strip()
+                    hex_code = '#' + ''.join(ch for ch in hex_part if ch in '0123456789ABCDEFabcdef')[:6]
+                    if len(hex_code) == 7:
+                        colors.append(hex_code.lower())
+                except Exception:
+                    pass
+
+        # Fallback: attempt to read colors.json to report colors if parsing didn't work
+        if not colors:
+            try:
+                colors_path = os.path.join(SCRIPT_DIR, 'colors.json')
+                if os.path.exists(colors_path):
+                    with open(colors_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        for item in (data if isinstance(data, list) else []):
+                            if isinstance(item, dict) and 'color' in item:
+                                c = str(item['color']).lower()
+                                if c.startswith('#') and len(c) in (4, 7):
+                                    colors.append(c)
+            except Exception:
+                pass
+
+        print(f"✅ Arduino colors captured: {colors if colors else '[colors parsed from JSON or unknown]'}")
+        return jsonify({'success': True, 'colors': colors})
+    except Exception as e:
+        print(f"Error in arduino_reset: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
     print("🎨 Starting ThePourtrait Gallery Server...")

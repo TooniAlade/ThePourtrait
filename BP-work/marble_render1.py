@@ -70,9 +70,15 @@ def parse_colors(colors_path: str) -> Tuple[List[Tuple[float, float, float]], Li
     Returns (colors_rgb_0_1, weights_norm) where weights sum to 1.
     If file missing or invalid, returns a fallback palette.
     """
-    fallback_colors = [(230/255.0, 70/255.0, 70/255.0),
-                       (60/255.0, 120/255.0, 230/255.0),
-                       (60/255.0, 200/255.0, 120/255.0)]
+    # Provide a 6-color default palette with matching weights
+    fallback_colors = [
+        (230/255.0, 70/255.0, 70/255.0),   # red
+        (60/255.0, 120/255.0, 230/255.0),  # blue
+        (60/255.0, 200/255.0, 120/255.0),  # green
+        (255/255.0, 140/255.0, 0/255.0),   # orange
+        (148/255.0, 0/255.0, 211/255.0),   # violet
+        (255/255.0, 20/255.0, 147/255.0)   # pink
+    ]
     fallback_weights = [0.25, 0.20, 0.20, 0.15, 0.10, 0.10]
     
     # Standard 6-color percentage breakdown
@@ -82,7 +88,8 @@ def parse_colors(colors_path: str) -> Tuple[List[Tuple[float, float, float]], Li
         with open(colors_path, "r", encoding="utf-8") as f:
             data = json.load(f)
     except Exception:
-        return fallback_colors[:6], [w/100.0 for w in standard_percentages]
+        # Return 6 fallback colors and weights normalized to sum to 1
+        return fallback_colors, [w/100.0 for w in standard_percentages]
 
     def hex_to_rgb01(h: str):
         h = h.strip()
@@ -115,14 +122,14 @@ def parse_colors(colors_path: str) -> Tuple[List[Tuple[float, float, float]], Li
                     c = (float(item[0])/255.0, float(item[1])/255.0, float(item[2])/255.0)
                     all_colors.append(c)
     except Exception:
-        return fallback_colors[:6], [w/100.0 for w in standard_percentages]
+        return fallback_colors, [w/100.0 for w in standard_percentages]
 
-    # If we have colors, randomly select 6 and apply standard percentages
+    # If we have colors, deterministically take the first 6 in file order
     if all_colors and len(all_colors) >= 6:
-        selected_colors = random.sample(all_colors, 6)
+        selected_colors = all_colors[:6]
         selected_weights = [w/100.0 for w in standard_percentages]
-        
-        # Show which colors were selected
+
+        # Show which colors were selected (in order)
         color_names = []
         for color in selected_colors:
             hex_color = "#{:02x}{:02x}{:02x}".format(
@@ -130,12 +137,12 @@ def parse_colors(colors_path: str) -> Tuple[List[Tuple[float, float, float]], Li
             )
             color_names.append(hex_color)
         try:
-            print(f"🎨 Selected colors: {', '.join(color_names)}")
+            print(f"🎨 Selected colors (from Arduino JSON): {', '.join(color_names)}")
             print(f"📊 Percentages: {standard_percentages}")
         except UnicodeEncodeError:
-            print(f"[ART] Selected colors: {', '.join(color_names)}")
+            print(f"[ART] Selected colors (from JSON): {', '.join(color_names)}")
             print(f"[CHART] Percentages: {standard_percentages}")
-        
+
         return selected_colors, selected_weights
     elif all_colors:
         # If fewer than 6 colors, use what we have with adjusted percentages
@@ -145,7 +152,7 @@ def parse_colors(colors_path: str) -> Tuple[List[Tuple[float, float, float]], Li
         selected_weights = [w/total for w in selected_weights]
         return all_colors, selected_weights
     else:
-        return fallback_colors[:6], [w/100.0 for w in standard_percentages]
+        return fallback_colors, [w/100.0 for w in standard_percentages]
 
 
 def build_bands(weights: List[float]) -> np.ndarray:

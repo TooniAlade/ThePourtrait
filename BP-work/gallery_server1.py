@@ -21,6 +21,7 @@ CORS(app)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR = os.path.join(SCRIPT_DIR, 'generated_art')
 MARBLE_SCRIPT = os.path.join(SCRIPT_DIR, 'marble_render1.py')
+ARDUINO_BRIDGE = os.path.join(SCRIPT_DIR, 'arduino_to_marble.py')
 
 # Create output directory if it doesn't exist
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -351,6 +352,141 @@ def get_palette():
         "colors": rgb_colors,
         "weights": weights
     })
+
+# Note: Removed /colors-status endpoint to revert to the simpler
+# working reset behavior without polling from the frontend.
+
+@app.route('/reset-arduino', methods=['POST'])
+def reset_arduino():
+    """Trigger the Arduino bridge to read colors and write colors.json, and clear current UI state on frontend.
+
+    This endpoint spawns the arduino_to_marble.py as a detached process (non-blocking)
+    to avoid freezing the Flask server while waiting for serial input. It writes the colors
+    into colors.json in the BP-work directory. You can adjust timeouts via env vars if needed.
+    """
+    try:
+        if not os.path.exists(ARDUINO_BRIDGE):
+            return jsonify({'error': 'arduino_to_marble.py not found'}), 500
+
+        python_exe = sys.executable
+
+        # Optional envs; default no timeout (blocks script until 6 colors are received)
+        color_timeout = os.getenv('ARD_COLOR_TIMEOUT', '0')  # seconds; '0' means no timeout
+        ard_port = os.getenv('ARD_PORT')  # e.g., 'COM3' on Windows
+        ard_baud = os.getenv('ARD_BAUD')  # e.g., '115200'
+
+        # Build command: only write colors.json (no render), try auto-detect port
+        cmd = [
+            python_exe, ARDUINO_BRIDGE,
+            '--colors-json', os.path.join(SCRIPT_DIR, 'colors.json'),
+            # '--port', 'COM3',  # uncomment or set via env if you need a fixed port
+        ]
+
+        if ard_port:
+            cmd += ['--port', ard_port]
+        if ard_baud:
+            cmd += ['--baud', ard_baud]
+
+        # Pass timeout if explicitly set and > 0
+        try:
+            if float(color_timeout) > 0:
+                cmd += ['--color-timeout', color_timeout]
+        except Exception:
+            pass
+
+        # Start as non-blocking so the API returns immediately
+        env = os.environ.copy()
+        env['PYTHONIOENCODING'] = 'utf-8'
+
+        # On Windows, use creationflags to detach console
+        creationflags = 0
+        if os.name == 'nt':
+            try:
+                creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
+            except Exception:
+                creationflags = 0
+
+        subprocess.Popen(
+            cmd,
+            cwd=SCRIPT_DIR,
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=creationflags
+        )
+
+        return jsonify({'started': True})
+    except Exception as e:
+        print(f"Error in reset_arduino: {e}")
+        return jsonify({'error': str(e)}), 500
+
+# Simple alias for reset endpoint (POST /reset)
+@app.route('/reset', methods=['POST'])
+def reset_alias():
+    return reset_arduino()
+
+# Synchronous Arduino reset endpoint that waits for capture and returns parsed colors
+@app.route('/arduino-reset', methods=['POST'])
+def arduino_reset_sync():
+    try:
+        if not os.path.exists(ARDUINO_BRIDGE):
+            return jsonify({'success': False, 'error': 'arduino_to_marble.py not found'}), 500
+
+        # Accept JSON overrides
+        data = request.get_json(silent=True) or {}
+        color_timeout = int(data.get('colorTimeout', os.getenv('ARD_COLOR_TIMEOUT', '20')))
+        port = data.get('port', os.getenv('ARD_PORT'))
+        baud = int(data.get('baud', os.getenv('ARD_BAUD', '115200')))
+
+        python_exe = sys.executable
+        cmd = [
+            python_exe, ARDUINO_BRIDGE,
+            '--colors-json', os.path.join(SCRIPT_DIR, 'colors.json'),
+            '--baud', str(baud)
+        ]
+        if port:
+            cmd += ['--port', str(port)]
+        if color_timeout and int(color_timeout) > 0:
+            cmd += ['--color-timeout', str(int(color_timeout))]
+
+        env = os.environ.copy()
+        env['PYTHONIOENCODING'] = 'utf-8'
+
+        print(f"Running Arduino capture (sync): {' '.join(cmd)}")
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=SCRIPT_DIR, env=env)
+        if result.returncode != 0:
+            return jsonify({'success': False, 'error': 'Failed to capture colors from Arduino', 'stderr': result.stderr}), 500
+
+        # Parse stdout for captured colors
+        colors = []
+        for line in (result.stdout or '').splitlines():
+            line = line.strip()
+            if line.lower().startswith('got color') and '#' in line:
+                try:
+                    hex_part = line.split('#', 1)[1].strip()
+                    hex_code = '#' + ''.join(ch for ch in hex_part if ch in '0123456789ABCDEFabcdef')[:6]
+                    if len(hex_code) == 7:
+                        colors.append(hex_code.lower())
+                except Exception:
+                    pass
+
+        # Fallback to reading colors.json
+        if not colors:
+            try:
+                with open(os.path.join(SCRIPT_DIR, 'colors.json'), 'r', encoding='utf-8') as f:
+                    j = json.load(f)
+                    for item in (j if isinstance(j, list) else []):
+                        if isinstance(item, dict) and 'color' in item:
+                            c = str(item['color']).lower()
+                            if c.startswith('#') and len(c) in (4, 7):
+                                colors.append(c)
+            except Exception:
+                pass
+
+        return jsonify({'success': True, 'colors': colors})
+    except Exception as e:
+        print(f"Error in arduino_reset_sync: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
     print("🎨 Starting ThePourtrait Gallery Server...")

@@ -186,6 +186,16 @@
             min-width: 150px;
         }
 
+        /* Reset row below email/download buttons */
+        .reset-row {
+            margin-top: 10px;
+            display: flex;
+            width: 100%;
+        }
+        .reset-row .send-btn {
+            width: 100%;
+        }
+
         .status-message {
             padding: 1rem;
             border-radius: 10px;
@@ -327,8 +337,15 @@
                             Download Art
                         </button>
                     </div>
+                    <div class="reset-row">
+                        <button type="button" class="send-btn" id="resetBtn" onclick="resetFromArduino()"
+                                style="background: linear-gradient(45deg, #ef4444, #f97316);">
+                            Reset (Read Arduino)
+                        </button>
+                    </div>
                 </form>
                 <div id="emailStatus"></div>
+                <div id="resetStatus" style="margin-top: 0.75rem;"></div>
             </div>
         </div>
     </div>
@@ -606,6 +623,50 @@
  
             document.getElementById('emailStatus').innerHTML = 
                 '<div class="status-message status-success">✅ Download started! Check your downloads folder.</div>';
+        }
+
+    async function resetFromArduino() {
+            const resetBtn = document.getElementById('resetBtn');
+            const resetStatus = document.getElementById('resetStatus');
+            const artContainer = document.getElementById('artContainer');
+            const artInfo = document.getElementById('artInfo');
+
+            const orig = resetBtn.innerHTML;
+            resetBtn.disabled = true;
+            resetBtn.innerHTML = '<span class="loading"></span>Reading from Arduino...';
+            resetStatus.innerHTML = '<div class="status-message status-info">Starting Arduino capture and clearing the canvas...</div>';
+
+            try {
+                // Call the synchronous endpoint so colors.json is guaranteed updated
+                const resp = await fetch('/arduino-reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ colorTimeout: 20 })
+                });
+                const payload = await resp.json().catch(() => ({}));
+                if (!resp.ok || payload.success === false) {
+                    throw new Error(payload.error || 'Reset failed');
+                }
+                // Clear UI state after successful capture
+                currentArtPath = null;
+                currentArtInfo = null;
+                artContainer.innerHTML = `
+                    <div class="art-placeholder">
+                        Canvas cleared. Arduino colors captured. Generate new art to use the new palette.
+                    </div>
+                `;
+                artInfo.style.display = 'none';
+                document.getElementById('sendBtn').disabled = true;
+                document.getElementById('downloadBtn').disabled = true;
+                const got = (payload && payload.colors && payload.colors.length) ? payload.colors.length : 0;
+                resetStatus.innerHTML = `<div class="status-message status-success">✅ Captured ${got} colors from Arduino and updated palette. Click "Generate New Marble Art" to render.</div>`;
+            } catch (e) {
+                console.error('Reset error:', e);
+                resetStatus.innerHTML = `<div class="status-message status-error">❌ ${e.message || 'Failed to reset from Arduino.'}</div>`;
+            } finally {
+                resetBtn.disabled = false;
+                resetBtn.innerHTML = orig;
+            }
         }
 
 

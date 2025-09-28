@@ -147,10 +147,18 @@ def main():
     port = args.port or detect_port()
     if not port:
         print("Could not auto-detect a serial port. Use --list-ports to see options and pass --port COMx.")
-        return
+        return 2
 
-    colors = read_six_colors(port, baud=args.baud, timeout=(None if args.color_timeout <= 0 else args.color_timeout))
-    write_colors_json(colors, args.colors_json)
+    try:
+        colors = read_six_colors(port, baud=args.baud, timeout=(None if args.color_timeout <= 0 else args.color_timeout))
+    except Exception as e:
+        print(f"Error while reading colors: {e}")
+        return 3
+    try:
+        write_colors_json(colors, args.colors_json)
+    except Exception as e:
+        print(f"Failed to write colors JSON: {e}")
+        return 4
 
     if args.run:
         # Optionally wait for tilt trigger before running
@@ -165,8 +173,14 @@ def main():
         if args.input:
             cmd += ["--input", args.input]
         cmd += ["--colors", args.colors_json, "--output", args.output]
-        subprocess.run(cmd, check=False)
+        try:
+            res = subprocess.run(cmd, check=False)
+            return res.returncode
+        except Exception as e:
+            print(f"Failed to run marble_render.py: {e}")
+            return 5
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
