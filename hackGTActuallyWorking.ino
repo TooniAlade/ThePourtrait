@@ -43,7 +43,7 @@ uint32_t stripColors[24] = {
   0x007FFF, 0x00BFFF, 0x00FFFF, 0x00FFBF, 0x00FF7F, 0x00FF3F
 };
 
-uint32_t chosenColors[4];
+uint32_t chosenColors[6];
 
 
 void setup() {
@@ -82,7 +82,7 @@ void setup() {
 
 void loop() {
 
-  if (currIteration < 4) {
+  if (currIteration < 6) {
   bool currButtonState = !(ss.digitalRead(SS_SWITCH));
 
   if ((currButtonState) && (!prevButtonState)) {
@@ -96,7 +96,7 @@ void loop() {
 
     // Fill main strip with the same color as inner
     uint32_t fillColor = stripColors[wrappedValue];
-    for (int i = currIteration * 36; i < currIteration * 36 + 36; i++) {
+    for (int i = currIteration * 24; i < currIteration * 24 + 24; i++) {
       strip.setPixelColor(i, fillColor);
     }
     strip.show();
@@ -124,11 +124,11 @@ void loop() {
 
   delay(10);
   }
-  if (currIteration == 4) {
+  if (currIteration == 6) {
     String finalString = "";
 
 
-    for (int i = 0; i < 4; i++) 
+    for (int i = 0; i < 6; i++) 
     { Serial.println(chosenColors[i]); 
       // Serial.println(chosenTimes[])
     }
