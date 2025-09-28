@@ -4,8 +4,9 @@ echo ==========================================
 echo.
 
 REM Get directories
-set SCRIPT_DIR=%~dp0
-set PROJECT_ROOT=%SCRIPT_DIR%..
+set "SCRIPT_DIR=%~dp0"
+REM Use the folder containing this script as the project root (don't go up one level)
+set "PROJECT_ROOT=%SCRIPT_DIR%"
 
 echo 📁 Setting up in: %PROJECT_ROOT%
 echo.
@@ -42,8 +43,10 @@ if exist ".venv" (
 REM Activate virtual environment and install requirements
 echo 🔧 Installing dependencies...
 call .venv\Scripts\activate.bat
+REM Ensure tooling is up to date for Py3.12 wheels
+python -m pip install --upgrade pip setuptools wheel
 if exist "BP-work\requirements.txt" (
-    pip install -r BP-work\requirements.txt
+    python -m pip install -r BP-work\requirements.txt
     if %errorlevel% neq 0 (
         echo ❌ Failed to install requirements
         pause
